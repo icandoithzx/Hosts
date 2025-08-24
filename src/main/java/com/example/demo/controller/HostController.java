@@ -228,4 +228,36 @@ public class HostController {
             return ResponseEntity.status(500).body(ApiResponse.<Boolean>errorWithType(500, "检查IP地址失败: " + e.getMessage()));
         }
     }
+    
+    /**
+     * 调试接口：查看缓存内容
+     */
+    @GetMapping("/debug/cache")
+    public ResponseEntity<ApiResponse<String>> debugCache() {
+        try {
+            if (hostService instanceof com.example.demo.service.impl.HostServiceImpl) {
+                ((com.example.demo.service.impl.HostServiceImpl) hostService).debugCacheContent();
+                return ResponseEntity.ok(ApiResponse.success("缓存调试信息已输出到日志"));
+            }
+            return ResponseEntity.ok(ApiResponse.success("无法访问调试功能"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(ApiResponse.<String>errorWithType(500, "调试失败: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * 调试接口：从缓存获取主机
+     */
+    @GetMapping("/debug/cache/{hostId}")
+    public ResponseEntity<ApiResponse<Host>> debugGetFromCache(@PathVariable Long hostId) {
+        try {
+            if (hostService instanceof com.example.demo.service.impl.HostServiceImpl) {
+                Host cachedHost = ((com.example.demo.service.impl.HostServiceImpl) hostService).debugGetFromCache(hostId);
+                return ResponseEntity.ok(ApiResponse.success(cachedHost));
+            }
+            return ResponseEntity.ok(ApiResponse.success(null));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(ApiResponse.<Host>errorWithType(500, "调试失败: " + e.getMessage()));
+        }
+    }
 }

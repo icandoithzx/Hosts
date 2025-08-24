@@ -12,7 +12,9 @@ import com.example.demo.util.SnowflakeIdGenerator;
 import org.redisson.api.RBatch;
 import org.redisson.api.RMap;
 import org.redisson.api.RSet;
+import com.example.demo.service.CacheAvailabilityService;
 import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -30,28 +32,28 @@ import java.util.stream.Collectors;
 @Service
 public class PolicyAdminServiceImpl implements PolicyAdminService {
 
-    private final PolicyMapper policyMapper;
-    private final ClientPolicyMappingMapper clientPolicyMappingMapper;
-    private final RedissonClient redissonClient;
-    private final SnowflakeIdGenerator snowflakeIdGenerator;
-    private final HeartbeatService heartbeatService;
-
-    public PolicyAdminServiceImpl(PolicyMapper policyMapper,
-                                  ClientPolicyMappingMapper clientPolicyMappingMapper,
-                                  RedissonClient redissonClient,
-                                  SnowflakeIdGenerator snowflakeIdGenerator,
-                                  HeartbeatService heartbeatService) {
-        this.policyMapper = policyMapper;
-        this.clientPolicyMappingMapper = clientPolicyMappingMapper;
-        this.redissonClient = redissonClient;
-        this.snowflakeIdGenerator = snowflakeIdGenerator;
-        this.heartbeatService = heartbeatService;
-    }
+    @Autowired
+    private PolicyMapper policyMapper;
+    
+    @Autowired
+    private ClientPolicyMappingMapper clientPolicyMappingMapper;
+    
+    @Autowired
+    private RedissonClient redissonClient;
+    
+    @Autowired
+    private SnowflakeIdGenerator snowflakeIdGenerator;
+    
+    @Autowired
+    private HeartbeatService heartbeatService;
+    
+    @Autowired
+    private CacheAvailabilityService cacheAvailabilityService;
 
 
     @Override
     @Transactional
-    @CachePut(value = "policies", key = "#result.id")
+    @CachePut(value = "policies", key = "#result.id", condition = "@cacheAvailabilityService.isCacheAvailable()")
     public Policy createOrUpdatePolicy(PolicyDto policyDto) {
         if (policyDto == null) {
             throw new IllegalArgumentException("策略数据不能为null");
@@ -84,7 +86,7 @@ public class PolicyAdminServiceImpl implements PolicyAdminService {
     }
 
     @Override
-    @Cacheable(value = "policies", key = "#policyId")
+    @Cacheable(value = "policies", key = "#policyId", condition = "@cacheAvailabilityService.isCacheAvailable()")
     public Policy getPolicyById(Long policyId) {
         if (policyId == null) {
             return null;
@@ -94,7 +96,7 @@ public class PolicyAdminServiceImpl implements PolicyAdminService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "clientPolicies", key = "#clientId")
+    @CacheEvict(value = "clientPolicies", key = "#clientId", condition = "@cacheAvailabilityService.isCacheAvailable()")
     public void assignPolicyToClient(String clientId, Long policyId) {
         if (clientId == null || policyId == null) {
             return;
@@ -195,7 +197,7 @@ public class PolicyAdminServiceImpl implements PolicyAdminService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "policies", key = "#policyId")
+    @CacheEvict(value = "policies", key = "#policyId", condition = "@cacheAvailabilityService.isCacheAvailable()")
     public void deletePolicy(Long policyId) {
         if (policyId == null) {
             return;
@@ -226,7 +228,7 @@ public class PolicyAdminServiceImpl implements PolicyAdminService {
     }
 
     @Override
-    @Cacheable(value = "clientPolicies", key = "#clientId")
+    @Cacheable(value = "clientPolicies", key = "#clientId", condition = "@cacheAvailabilityService.isCacheAvailable()")
     public List<Long> getClientPolicyIds(String clientId) {
         if (clientId == null) {
             return new ArrayList<>();
@@ -242,7 +244,7 @@ public class PolicyAdminServiceImpl implements PolicyAdminService {
 
     @Override
     @Transactional
-    @CachePut(value = "policies", key = "#result.id")
+    @CachePut(value = "policies", key = "#result.id", condition = "@cacheAvailabilityService.isCacheAvailable()")
     public Policy createDefaultPolicy(PolicyDto policyDto) {
         if (policyDto == null) {
             throw new IllegalArgumentException("策略数据不能为null");
@@ -269,7 +271,7 @@ public class PolicyAdminServiceImpl implements PolicyAdminService {
     }
 
     @Override
-    @Cacheable(value = "clientPolicies", key = "'effective:' + #clientId")
+    @Cacheable(value = "clientPolicies", key = "'effective:' + #clientId", condition = "@cacheAvailabilityService.isCacheAvailable()")
     public Policy getEffectivePolicy(String clientId) {
         if (clientId == null) {
             return getDefaultPolicy();
@@ -296,7 +298,7 @@ public class PolicyAdminServiceImpl implements PolicyAdminService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "clientPolicies", allEntries = true)
+    @CacheEvict(value = "clientPolicies", allEntries = true, condition = "@cacheAvailabilityService.isCacheAvailable()")
     public void activatePolicy(String clientId, Long policyId) {
         if (clientId == null || policyId == null) {
             return;
@@ -330,7 +332,7 @@ public class PolicyAdminServiceImpl implements PolicyAdminService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "policies", key = "#policyId")
+    @CacheEvict(value = "policies", key = "#policyId", condition = "@cacheAvailabilityService.isCacheAvailable()")
     public void updatePolicyStatus(Long policyId, String status) {
         if (policyId == null || status == null) {
             throw new IllegalArgumentException("策略ID和状态不能为null");
@@ -399,7 +401,7 @@ public class PolicyAdminServiceImpl implements PolicyAdminService {
     /**
      * 获取默认策略
      */
-    @Cacheable(value = "policies", key = "'default'")
+    @Cacheable(value = "policies", key = "'default'", condition = "@cacheAvailabilityService.isCacheAvailable()")
     private Policy getDefaultPolicy() {
         QueryWrapper<Policy> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("is_default", true).eq("status", "enabled");

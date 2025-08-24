@@ -2,11 +2,13 @@ package com.example.demo.service.impl;
 
 import com.example.demo.dto.HeartbeatResponse;
 import com.example.demo.model.entity.Policy;
+import com.example.demo.service.CacheAvailabilityService;
 import com.example.demo.service.HeartbeatService;
 import com.example.demo.service.PolicyAdminService;
 import org.redisson.api.RMap;
 import org.redisson.api.RedissonClient;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -24,19 +26,19 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class HeartbeatServiceImpl implements HeartbeatService {
 
-    private final PolicyAdminService policyAdminService;
-    private final RedissonClient redissonClient;
+    @Autowired
+    private PolicyAdminService policyAdminService;
+    
+    @Autowired
+    private RedissonClient redissonClient;
+    
+    @Autowired
+    private CacheAvailabilityService cacheAvailabilityService;
 
     // 缓存配置常量
     private static final String POLICY_CACHE_PREFIX = "heartbeat:policy:";
     private static final String POLICY_HASH_CACHE_PREFIX = "heartbeat:hash:";
     private static final int CACHE_TTL_MINUTES = 30;
-
-    public HeartbeatServiceImpl(PolicyAdminService policyAdminService, 
-                               RedissonClient redissonClient) {
-        this.policyAdminService = policyAdminService;
-        this.redissonClient = redissonClient;
-    }
 
     @Override
     public HeartbeatResponse checkPolicies(String clientId, String clientPoliciesHash) {
@@ -81,30 +83,36 @@ public class HeartbeatServiceImpl implements HeartbeatService {
     }
 
     @Override
-    @Cacheable(value = "clientEffectivePolicies", key = "#clientId")
+    @Cacheable(value = "clientEffectivePolicies", key = "#clientId", condition = "@cacheAvailabilityService.isCacheAvailable()")
     public Policy getClientEffectivePolicy(String clientId) {
         if (!StringUtils.hasText(clientId)) {
             return null;
         }
 
         try {
-            // 先从Redis缓存获取
-            String cacheKey = POLICY_CACHE_PREFIX + clientId;
-            RMap<String, Object> cachedPolicy = redissonClient.getMap(cacheKey);
-            
-            if (!cachedPolicy.isEmpty()) {
-                return reconstructPolicyFromCache(cachedPolicy);
-            }
+            // 检查缓存是否可用
+            if (cacheAvailabilityService.isCacheAvailable()) {
+                // 先从Redis缓存获取
+                String cacheKey = POLICY_CACHE_PREFIX + clientId;
+                RMap<String, Object> cachedPolicy = redissonClient.getMap(cacheKey);
+                
+                if (!cachedPolicy.isEmpty()) {
+                    return reconstructPolicyFromCache(cachedPolicy);
+                }
 
-            // 缓存未命中，从数据库获取
-            Policy policy = policyAdminService.getEffectivePolicy(clientId);
-            
-            if (policy != null) {
-                // 缓存到Redis
-                cachePolicyToRedis(clientId, policy);
+                // 缓存未命中，从数据库获取
+                Policy policy = policyAdminService.getEffectivePolicy(clientId);
+                
+                if (policy != null) {
+                    // 缓存到Redis
+                    cachePolicyToRedis(clientId, policy);
+                }
+                
+                return policy;
+            } else {
+                // 缓存不可用，直接从数据库获取
+                return policyAdminService.getEffectivePolicy(clientId);
             }
-            
-            return policy;
             
         } catch (Exception e) {
             // 缓存异常时降级到数据库查询
@@ -119,25 +127,32 @@ public class HeartbeatServiceImpl implements HeartbeatService {
         }
 
         try {
-            // 先从Redis哈希缓存获取
-            String hashCacheKey = POLICY_HASH_CACHE_PREFIX + clientId;
-            RMap<String, String> hashCache = redissonClient.getMap(hashCacheKey);
-            String cachedHash = hashCache.get("hash");
-            
-            if (StringUtils.hasText(cachedHash)) {
-                return cachedHash;
-            }
+            // 检查缓存是否可用
+            if (cacheAvailabilityService.isCacheAvailable()) {
+                // 先从Redis哈希缓存获取
+                String hashCacheKey = POLICY_HASH_CACHE_PREFIX + clientId;
+                RMap<String, String> hashCache = redissonClient.getMap(hashCacheKey);
+                String cachedHash = hashCache.get("hash");
+                
+                if (StringUtils.hasText(cachedHash)) {
+                    return cachedHash;
+                }
 
-            // 缓存未命中，重新计算
-            Policy policy = getClientEffectivePolicy(clientId);
-            if (policy != null) {
-                String hash = calculatePolicyHash(policy);
-                
-                // 缓存哈希值
-                hashCache.put("hash", hash);
-                hashCache.expire(CACHE_TTL_MINUTES, TimeUnit.MINUTES);
-                
-                return hash;
+                // 缓存未命中，重新计算
+                Policy policy = getClientEffectivePolicy(clientId);
+                if (policy != null) {
+                    String hash = calculatePolicyHash(policy);
+                    
+                    // 缓存哈希值
+                    hashCache.put("hash", hash);
+                    hashCache.expire(CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+                    
+                    return hash;
+                }
+            } else {
+                // 缓存不可用，直接计算
+                Policy policy = getClientEffectivePolicy(clientId);
+                return policy != null ? calculatePolicyHash(policy) : null;
             }
             
             return null;
@@ -152,6 +167,12 @@ public class HeartbeatServiceImpl implements HeartbeatService {
     @Override
     public void preWarmClientPolicyCache(String clientId) {
         if (!StringUtils.hasText(clientId)) {
+            return;
+        }
+
+        // 检查缓存是否可用
+        if (!cacheAvailabilityService.isCacheAvailable()) {
+            // 缓存不可用，无需预热
             return;
         }
 

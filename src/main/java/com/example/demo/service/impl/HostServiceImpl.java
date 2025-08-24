@@ -11,7 +11,12 @@ import com.example.demo.model.enums.AuthStatus;
 import com.example.demo.model.enums.HostStatus;
 import com.example.demo.model.enums.OnlineStatus;
 import com.example.demo.service.HostService;
+import com.example.demo.service.CacheAvailabilityService;
 import com.example.demo.util.SnowflakeIdGenerator;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -25,11 +30,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 public class HostServiceImpl implements HostService {
 
     private final HostMapper hostMapper;
     private final SnowflakeIdGenerator snowflakeIdGenerator;
+    
+    @Autowired
+    private CacheAvailabilityService cacheAvailabilityService;
+    
+    @Autowired
+    private CacheManager cacheManager;
 
     public HostServiceImpl(HostMapper hostMapper, SnowflakeIdGenerator snowflakeIdGenerator) {
         this.hostMapper = hostMapper;
@@ -38,8 +50,12 @@ public class HostServiceImpl implements HostService {
 
     @Override
     @Transactional
-    @CachePut(value = "hosts", key = "#result.id")
+    @CachePut(value = "hosts", key = "#result.id", condition = "@cacheAvailabilityService.isCacheAvailable()")
     public Host createOrUpdateHost(HostDto hostDto) {
+        boolean cacheAvailable = cacheAvailabilityService.isCacheAvailable();
+        log.info("🏠 开始创建或更新主机，缓存可用性: {} ({})", 
+                cacheAvailable, cacheAvailable ? "Redis缓存" : "数据库直连");
+        
         if (hostDto == null) {
             throw new IllegalArgumentException("主机信息不能为null");
         }
@@ -82,11 +98,17 @@ public class HostServiceImpl implements HostService {
             hostMapper.insert(host);
         }
 
-        return host;
+        Host result = host;
+        boolean finalCacheAvailable = cacheAvailabilityService.isCacheAvailable();
+        log.info("✅ 主机创建或更新完成，ID: {}, 缓存操作: {} ({})", 
+                result.getId(), 
+                finalCacheAvailable ? "已缓存" : "未缓存",
+                finalCacheAvailable ? "Redis" : "直连数据库");
+        return result;
     }
 
     @Override
-    @Cacheable(value = "hosts", key = "#hostId")
+    @Cacheable(value = "hosts", key = "#hostId", condition = "@cacheAvailabilityService.isCacheAvailable()")
     public Host getHostById(Long hostId) {
         if (hostId == null) {
             return null;
@@ -95,7 +117,7 @@ public class HostServiceImpl implements HostService {
     }
 
     @Override
-    @Cacheable(value = "hosts", key = "'mac:' + #macAddress")
+    @Cacheable(value = "hosts", key = "'mac:' + #macAddress", condition = "@cacheAvailabilityService.isCacheAvailable()")
     public Host getHostByMacAddress(String macAddress) {
         if (!StringUtils.hasText(macAddress)) {
             return null;
@@ -106,7 +128,7 @@ public class HostServiceImpl implements HostService {
     }
 
     @Override
-    @Cacheable(value = "hosts", key = "'ip_org:' + #ipAddress + ':' + #organizationId")
+    @Cacheable(value = "hosts", key = "'ip_org:' + #ipAddress + ':' + #organizationId", condition = "@cacheAvailabilityService.isCacheAvailable()")
     public Host getHostByIpAndOrganization(String ipAddress, Long organizationId) {
         if (!StringUtils.hasText(ipAddress) || organizationId == null) {
             return null;
@@ -140,7 +162,7 @@ public class HostServiceImpl implements HostService {
     }
 
     @Override
-    @Cacheable(value = "hosts", key = "'org:' + #organizationId")
+    @Cacheable(value = "hosts", key = "'org:' + #organizationId", condition = "@cacheAvailabilityService.isCacheAvailable()")
     public List<Host> getHostsByOrganization(Long organizationId) {
         if (organizationId == null) {
             return Collections.emptyList();
@@ -152,7 +174,7 @@ public class HostServiceImpl implements HostService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "hosts", key = "#hostId")
+    @CacheEvict(value = "hosts", key = "#hostId", condition = "@cacheAvailabilityService.isCacheAvailable()")
     public void updateOnlineStatus(Long hostId, OnlineStatus onlineStatus) {
         if (hostId == null || onlineStatus == null) {
             return;
@@ -172,7 +194,7 @@ public class HostServiceImpl implements HostService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "hosts", key = "#hostId")
+    @CacheEvict(value = "hosts", key = "#hostId", condition = "@cacheAvailabilityService.isCacheAvailable()")
     public void updateAuthStatus(Long hostId, AuthStatus authStatus) {
         if (hostId == null || authStatus == null) {
             return;
@@ -192,7 +214,7 @@ public class HostServiceImpl implements HostService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "hosts", allEntries = true)
+    @CacheEvict(value = "hosts", allEntries = true, condition = "@cacheAvailabilityService.isCacheAvailable()")
     public void batchUpdateAuthStatus(List<Long> hostIds, AuthStatus authStatus) {
         if (hostIds == null || hostIds.isEmpty() || authStatus == null) {
             return;
@@ -215,7 +237,7 @@ public class HostServiceImpl implements HostService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "hosts", key = "#hostId")
+    @CacheEvict(value = "hosts", key = "#hostId", condition = "@cacheAvailabilityService.isCacheAvailable()")
     public void deleteHost(Long hostId) {
         if (hostId == null) {
             return;
@@ -225,7 +247,7 @@ public class HostServiceImpl implements HostService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "hosts", allEntries = true)
+    @CacheEvict(value = "hosts", allEntries = true, condition = "@cacheAvailabilityService.isCacheAvailable()")
     public void batchDeleteHosts(List<Long> hostIds) {
         if (hostIds == null || hostIds.isEmpty()) {
             return;
@@ -397,5 +419,45 @@ public class HostServiceImpl implements HostService {
         entity.setRemarks(dto.getRemarks());
 
         return entity;
+    }
+    
+    /**
+     * 调试方法：查看缓存中的数据
+     */
+    public void debugCacheContent() {
+        if (cacheManager != null) {
+            Cache hostsCache = cacheManager.getCache("hosts");
+            if (hostsCache != null) {
+                log.info("🔍 缓存类型: {}", hostsCache.getClass().getSimpleName());
+                log.info("🔍 缓存名称: {}", hostsCache.getName());
+                
+                // 尝试查看缓存统计信息
+                if (hostsCache.getNativeCache() != null) {
+                    log.info("🔍 Native Cache 类型: {}", hostsCache.getNativeCache().getClass().getSimpleName());
+                }
+            } else {
+                log.warn("⚠️ hosts 缓存不存在");
+            }
+        }
+    }
+    
+    /**
+     * 调试方法：查看指定主机ID的缓存数据
+     */
+    public Host debugGetFromCache(Long hostId) {
+        if (cacheManager != null && hostId != null) {
+            Cache hostsCache = cacheManager.getCache("hosts");
+            if (hostsCache != null) {
+                Cache.ValueWrapper wrapper = hostsCache.get(hostId);
+                if (wrapper != null) {
+                    Host cachedHost = (Host) wrapper.get();
+                    log.info("✅ 从缓存中获取到主机ID: {}, 名称: {}", hostId, cachedHost != null ? cachedHost.getHostName() : "null");
+                    return cachedHost;
+                } else {
+                    log.warn("⚠️ 缓存中找不到主机ID: {}", hostId);
+                }
+            }
+        }
+        return null;
     }
 }
