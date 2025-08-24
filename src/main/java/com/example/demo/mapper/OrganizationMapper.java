@@ -20,13 +20,13 @@ public interface OrganizationMapper extends BaseMapper<Organization> {
      * @return 子组织列表
      */
     @Select("SELECT * FROM organizations WHERE parent_id = #{parentId} AND status = 1 ORDER BY sort_order, name")
-    List<Organization> selectByParentId(@Param("parentId") Long parentId);
+    List<Organization> selectByParentId(@Param("parentId") String parentId);
     
     /**
      * 查询所有根级别组织
      * @return 根级别组织列表
      */
-    @Select("SELECT * FROM organizations WHERE parent_id = 0 AND status = 1 ORDER BY sort_order, name")
+    @Select("SELECT * FROM organizations WHERE parent_id = '0' AND status = 1 ORDER BY sort_order, name")
     List<Organization> selectRootOrganizations();
     
     /**

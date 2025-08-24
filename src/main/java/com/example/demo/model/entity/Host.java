@@ -54,7 +54,7 @@ public class Host implements Serializable {
     private String operatingSystem; // 操作系统
 
     @TableField("organization_id")
-    private Long organizationId; // 组织架构ID
+    private String organizationId; // 组织架构ID
 
     @TableField("last_online_time")
     private LocalDateTime lastOnlineTime; // 最后在线时间

@@ -22,7 +22,7 @@ public class Organization implements Serializable {
      */
     @TableId(type = IdType.INPUT)
     @TableField("id")
-    private Long id;
+    private String id;
     
     /**
      * 组织名称
@@ -31,10 +31,10 @@ public class Organization implements Serializable {
     private String name;
     
     /**
-     * 上级组织ID，根级别组织为0
+     * 上级组织ID，根级别组织为"0"
      */
     @TableField("parent_id")
-    private Long parentId;
+    private String parentId;
     
     /**
      * 组织级别（可选，用于层级显示）

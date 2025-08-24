@@ -48,7 +48,7 @@ public class HostQueryDto {
     /**
      * 组织架构ID
      */
-    private Long organizationId;
+    private String organizationId;
 
     /**
      * 创建时间开始

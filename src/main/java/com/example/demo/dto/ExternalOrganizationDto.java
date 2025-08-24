@@ -13,7 +13,7 @@ public class ExternalOrganizationDto {
     /**
      * 组织ID
      */
-    private Long id;
+    private String id;
     
     /**
      * 组织名称
@@ -21,9 +21,9 @@ public class ExternalOrganizationDto {
     private String name;
     
     /**
-     * 上级组织ID，根级别为0
+     * 上级组织ID，根级别为"0"
      */
-    private Long parentId;
+    private String parentId;
     
     /**
      * 排序字段

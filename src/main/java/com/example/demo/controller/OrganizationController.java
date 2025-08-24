@@ -4,7 +4,7 @@ import com.example.demo.dto.ExternalOrganizationDto;
 import com.example.demo.dto.OrganizationDto;
 import com.example.demo.model.entity.Organization;
 import com.example.demo.service.OrganizationService;
-import com.example.demo.common.ApiResponse;
+import com.example.demo.dto.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -46,7 +46,7 @@ public class OrganizationController {
      * 根据ID获取组织信息
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<Organization>> getById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Organization>> getById(@PathVariable String id) {
         try {
             Organization organization = organizationService.getById(id);
             if (organization == null) {
@@ -65,7 +65,7 @@ public class OrganizationController {
      * 根据上级组织ID获取子组织
      */
     @GetMapping("/children/{parentId}")
-    public ResponseEntity<ApiResponse<List<Organization>>> getChildren(@PathVariable Long parentId) {
+    public ResponseEntity<ApiResponse<List<Organization>>> getChildren(@PathVariable String parentId) {
         try {
             List<Organization> children = organizationService.getByParentId(parentId);
             return ResponseEntity.ok(ApiResponse.success(children));

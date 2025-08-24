@@ -31,20 +31,20 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Override
     public List<OrganizationDto> getOrganizationTree() {
         List<Organization> allOrgs = getAllOrganizations();
-        return buildTree(allOrgs, 0L);
+        return buildTree(allOrgs, "0");
     }
     
     @Override
-    public Organization getById(Long id) {
-        if (id == null) {
+    public Organization getById(String id) {
+        if (id == null || id.trim().isEmpty()) {
             return null;
         }
         return organizationMapper.selectById(id);
     }
     
     @Override
-    public List<Organization> getByParentId(Long parentId) {
-        return organizationMapper.selectByParentId(parentId != null ? parentId : 0L);
+    public List<Organization> getByParentId(String parentId) {
+        return organizationMapper.selectByParentId(parentId != null ? parentId : "0");
     }
     
     @Override
@@ -179,7 +179,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     /**
      * 构建组织树
      */
-    private List<OrganizationDto> buildTree(List<Organization> organizations, Long parentId) {
+    private List<OrganizationDto> buildTree(List<Organization> organizations, String parentId) {
         return organizations.stream()
                 .filter(org -> Objects.equals(org.getParentId(), parentId))
                 .map(org -> {
@@ -200,7 +200,7 @@ public class OrganizationServiceImpl implements OrganizationService {
                     Organization org = new Organization();
                     org.setId(external.getId());
                     org.setName(external.getName());
-                    org.setParentId(external.getParentId() != null ? external.getParentId() : 0L);
+                    org.setParentId(external.getParentId() != null ? external.getParentId() : "0");
                     org.setStatus(external.getStatus() != null ? external.getStatus() : 1);
                     org.setSortOrder(external.getSortOrder() != null ? external.getSortOrder() : 0);
                     org.setDescription(external.getDescription());
@@ -215,7 +215,7 @@ public class OrganizationServiceImpl implements OrganizationService {
      * 计算组织层级和路径
      */
     private void calculateLevelAndPath(List<Organization> organizations) {
-        Map<Long, Organization> orgMap = organizations.stream()
+        Map<String, Organization> orgMap = organizations.stream()
                 .collect(Collectors.toMap(Organization::getId, org -> org));
         
         for (Organization org : organizations) {
@@ -226,15 +226,15 @@ public class OrganizationServiceImpl implements OrganizationService {
     /**
      * 计算单个组织的层级和路径
      */
-    private void calculateSingleOrgLevelAndPath(Organization org, Map<Long, Organization> orgMap) {
+    private void calculateSingleOrgLevelAndPath(Organization org, Map<String, Organization> orgMap) {
         if (org.getLevel() != null && org.getPath() != null) {
             return; // 已经计算过
         }
         
-        if (org.getParentId() == 0) {
+        if ("0".equals(org.getParentId())) {
             // 根级别组织
             org.setLevel(1);
-            org.setPath(org.getId().toString());
+            org.setPath(org.getId());
         } else {
             // 子组织，需要先计算父组织
             Organization parent = orgMap.get(org.getParentId());
@@ -246,8 +246,8 @@ public class OrganizationServiceImpl implements OrganizationService {
                 // 找不到父组织，当作根级别处理
                 log.warn("⚠️ 组织 {} 的父组织 {} 不存在，当作根级别处理", org.getId(), org.getParentId());
                 org.setLevel(1);
-                org.setPath(org.getId().toString());
-                org.setParentId(0L);
+                org.setPath(org.getId());
+                org.setParentId("0");
             }
         }
     }

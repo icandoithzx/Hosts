@@ -129,8 +129,8 @@ public class HostServiceImpl implements HostService {
 
     @Override
     @Cacheable(value = "hosts", key = "'ip_org:' + #ipAddress + ':' + #organizationId", condition = "@cacheAvailabilityService.isCacheAvailable()")
-    public Host getHostByIpAndOrganization(String ipAddress, Long organizationId) {
-        if (!StringUtils.hasText(ipAddress) || organizationId == null) {
+    public Host getHostByIpAndOrganization(String ipAddress, String organizationId) {
+        if (!StringUtils.hasText(ipAddress) || !StringUtils.hasText(organizationId)) {
             return null;
         }
         QueryWrapper<Host> queryWrapper = new QueryWrapper<>();
@@ -163,8 +163,8 @@ public class HostServiceImpl implements HostService {
 
     @Override
     @Cacheable(value = "hosts", key = "'org:' + #organizationId", condition = "@cacheAvailabilityService.isCacheAvailable()")
-    public List<Host> getHostsByOrganization(Long organizationId) {
-        if (organizationId == null) {
+    public List<Host> getHostsByOrganization(String organizationId) {
+        if (!StringUtils.hasText(organizationId)) {
             return Collections.emptyList();
         }
         QueryWrapper<Host> queryWrapper = new QueryWrapper<>();
@@ -256,9 +256,9 @@ public class HostServiceImpl implements HostService {
     }
 
     @Override
-    public Map<String, Object> getHostStatistics(Long organizationId) {
+    public Map<String, Object> getHostStatistics(String organizationId) {
         QueryWrapper<Host> queryWrapper = new QueryWrapper<>();
-        if (organizationId != null) {
+        if (StringUtils.hasText(organizationId)) {
             queryWrapper.eq("organization_id", organizationId);
         }
 
@@ -318,8 +318,8 @@ public class HostServiceImpl implements HostService {
     }
 
     @Override
-    public boolean isIpAddressExistsInOrganization(String ipAddress, Long organizationId, Long excludeHostId) {
-        if (!StringUtils.hasText(ipAddress) || organizationId == null) {
+    public boolean isIpAddressExistsInOrganization(String ipAddress, String organizationId, Long excludeHostId) {
+        if (!StringUtils.hasText(ipAddress) || !StringUtils.hasText(organizationId)) {
             return false;
         }
 
@@ -367,7 +367,7 @@ public class HostServiceImpl implements HostService {
         if (StringUtils.hasText(queryDto.getResponsiblePerson())) {
             queryWrapper.like("responsible_person", queryDto.getResponsiblePerson());
         }
-        if (queryDto.getOrganizationId() != null) {
+        if (StringUtils.hasText(queryDto.getOrganizationId())) {
             queryWrapper.eq("organization_id", queryDto.getOrganizationId());
         }
         if (queryDto.getCreatedAtStart() != null) {

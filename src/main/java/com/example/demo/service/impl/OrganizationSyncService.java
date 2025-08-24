@@ -162,12 +162,12 @@ public class OrganizationSyncService implements ApplicationRunner {
         
         // 创建模拟组织架构
         List<ExternalOrganizationDto> mockOrgs = List.of(
-            createMockOrg(1L, "总公司", 0L, 0, "公司总部"),
-            createMockOrg(2L, "技术中心", 1L, 1, "负责技术研发"),
-            createMockOrg(3L, "市场部", 1L, 2, "负责市场营销"),
-            createMockOrg(4L, "前端团队", 2L, 1, "前端开发团队"),
-            createMockOrg(5L, "后端团队", 2L, 2, "后端开发团队"),
-            createMockOrg(6L, "运维团队", 2L, 3, "运维保障团队")
+            createMockOrg("1001", "总公司", "0", 0, "公司总部"),
+            createMockOrg("1002", "技术中心", "1001", 1, "负责技术研发"),
+            createMockOrg("1003", "市场部", "1001", 2, "负责市场营销"),
+            createMockOrg("1004", "前端团队", "1002", 1, "前端开发团队"),
+            createMockOrg("1005", "后端团队", "1002", 2, "后端开发团队"),
+            createMockOrg("1006", "运维团队", "1002", 3, "运维保障团队")
         );
         
         mockData.setOrganizations(mockOrgs);
@@ -177,7 +177,7 @@ public class OrganizationSyncService implements ApplicationRunner {
     /**
      * 创建模拟组织数据
      */
-    private ExternalOrganizationDto createMockOrg(Long id, String name, Long parentId, Integer sortOrder, String description) {
+    private ExternalOrganizationDto createMockOrg(String id, String name, String parentId, Integer sortOrder, String description) {
         ExternalOrganizationDto org = new ExternalOrganizationDto();
         org.setId(id);
         org.setName(name);

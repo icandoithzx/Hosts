@@ -45,7 +45,7 @@ public interface HostService {
      * @param organizationId 组织ID
      * @return 主机实体
      */
-    Host getHostByIpAndOrganization(String ipAddress, Long organizationId);
+    Host getHostByIpAndOrganization(String ipAddress, String organizationId);
 
     /**
      * 分页查询主机信息
@@ -61,7 +61,7 @@ public interface HostService {
      * @param organizationId 组织ID
      * @return 主机列表
      */
-    List<Host> getHostsByOrganization(Long organizationId);
+    List<Host> getHostsByOrganization(String organizationId);
 
     /**
      * 更新主机在线状态
@@ -107,7 +107,7 @@ public interface HostService {
      * @param organizationId 组织ID（可选）
      * @return 统计信息
      */
-    java.util.Map<String, Object> getHostStatistics(Long organizationId);
+    java.util.Map<String, Object> getHostStatistics(String organizationId);
 
     /**
      * 检查MAC地址是否已存在
@@ -126,5 +126,5 @@ public interface HostService {
      * @param excludeHostId 排除的主机ID（更新时使用）
      * @return 是否存在
      */
-    boolean isIpAddressExistsInOrganization(String ipAddress, Long organizationId, Long excludeHostId);
+    boolean isIpAddressExistsInOrganization(String ipAddress, String organizationId, Long excludeHostId);
 }

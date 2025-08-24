@@ -68,7 +68,7 @@ public class HostDto {
     /**
      * 组织架构ID
      */
-    private Long organizationId;
+    private String organizationId;
 
     /**
      * 最后在线时间

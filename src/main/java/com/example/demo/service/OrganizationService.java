@@ -22,14 +22,14 @@ public interface OrganizationService {
      * @param id 组织ID
      * @return 组织信息
      */
-    Organization getById(Long id);
+    Organization getById(String id);
     
     /**
      * 根据上级组织ID获取子组织
      * @param parentId 上级组织ID
      * @return 子组织列表
      */
-    List<Organization> getByParentId(Long parentId);
+    List<Organization> getByParentId(String parentId);
     
     /**
      * 获取所有组织的扁平列表

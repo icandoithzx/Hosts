@@ -17,7 +17,7 @@ CREATE TABLE hosts (
     responsible_person VARCHAR(255) NOT NULL COMMENT '责任人',
     version VARCHAR(50) NOT NULL COMMENT '版本号',
     operating_system VARCHAR(255) NOT NULL COMMENT '操作系统',
-    organization_id BIGINT NOT NULL COMMENT '组织架构ID',
+    organization_id VARCHAR(100) NOT NULL COMMENT '组织架构ID',
     last_online_time TIMESTAMP NULL COMMENT '最后在线时间',
     auth_time TIMESTAMP NULL COMMENT '授权时间',
     remarks CLOB COMMENT '备注信息',
@@ -112,9 +112,9 @@ ALTER TABLE client_policy_mappings ADD CONSTRAINT fk_client_policy_policy_id
 -- =============================================================================
 DROP TABLE IF EXISTS organizations;
 CREATE TABLE organizations (
-    id BIGINT NOT NULL COMMENT '组织ID，来自外部系统',
+    id VARCHAR(100) NOT NULL COMMENT '组织ID，来自外部系统',
     name VARCHAR(255) NOT NULL COMMENT '组织名称',
-    parent_id BIGINT NOT NULL DEFAULT 0 COMMENT '上级组织ID，根级别为0',
+    parent_id VARCHAR(100) NOT NULL DEFAULT '0' COMMENT '上级组织ID，根级别为"0"',
     level INTEGER NOT NULL DEFAULT 1 COMMENT '组织级别',
     path VARCHAR(1000) COMMENT '组织路径，如：1/2/3',
     status INTEGER NOT NULL DEFAULT 1 COMMENT '组织状态（1-正常，0-停用）',

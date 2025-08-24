@@ -91,7 +91,7 @@ public class HostController {
      * 根据组织ID获取主机列表
      */
     @GetMapping("/organization/{organizationId}")
-    public ResponseEntity<ApiResponse<List<Host>>> getHostsByOrganization(@PathVariable Long organizationId) {
+    public ResponseEntity<ApiResponse<List<Host>>> getHostsByOrganization(@PathVariable String organizationId) {
         try {
             List<Host> hosts = hostService.getHostsByOrganization(organizationId);
             return ResponseEntity.ok(ApiResponse.success(hosts));
@@ -189,7 +189,7 @@ public class HostController {
      */
     @GetMapping("/statistics")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getHostStatistics(
-            @RequestParam(required = false) Long organizationId) {
+            @RequestParam(required = false) String organizationId) {
         try {
             Map<String, Object> statistics = hostService.getHostStatistics(organizationId);
             return ResponseEntity.ok(ApiResponse.success(statistics));
@@ -219,7 +219,7 @@ public class HostController {
     @GetMapping("/check/ip-address")
     public ResponseEntity<ApiResponse<Boolean>> checkIpAddressExistsInOrganization(
             @RequestParam String ipAddress,
-            @RequestParam Long organizationId,
+            @RequestParam String organizationId,
             @RequestParam(required = false) Long excludeHostId) {
         try {
             boolean exists = hostService.isIpAddressExistsInOrganization(ipAddress, organizationId, excludeHostId);

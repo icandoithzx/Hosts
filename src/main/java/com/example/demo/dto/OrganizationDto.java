@@ -14,7 +14,7 @@ public class OrganizationDto {
     /**
      * 组织ID
      */
-    private Long id;
+    private String id;
     
     /**
      * 组织名称
@@ -24,7 +24,7 @@ public class OrganizationDto {
     /**
      * 上级组织ID
      */
-    private Long parentId;
+    private String parentId;
     
     /**
      * 组织级别
