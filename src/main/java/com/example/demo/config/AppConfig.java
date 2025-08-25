@@ -5,6 +5,7 @@ import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -19,6 +20,7 @@ public class AppConfig {
     private int redisPort;
     
     @Bean
+    @ConditionalOnProperty(name = "spring.redis.enabled", havingValue = "true", matchIfMissing = true)
     public RedissonClient redissonClient() {
         try {
             Config config = new Config();
@@ -35,11 +37,11 @@ public class AppConfig {
                     .setIdleConnectionTimeout(10000);
             
             RedissonClient redissonClient = Redisson.create(config);
-            log.info("\ud83d\ude80 RedissonClient 创建成功，地址: {}", address);
+            log.info(" RedissonClient 创建成功，地址: {}", address);
             return redissonClient;
         } catch (Exception e) {
-            log.error("\u274c RedissonClient 创建失败: {}", e.getMessage());
-            throw e;
+            log.error("RedissonClient 创建失败: {}", e.getMessage());
+            throw e ;
         }
     }
 }

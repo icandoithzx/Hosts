@@ -2,6 +2,7 @@ package com.example.demo.service.impl;
 
 import com.example.demo.dto.ExternalOrganizationDto;
 import com.example.demo.service.OrganizationService;
+import com.example.demo.service.OrganizationSyncService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
@@ -14,15 +15,14 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 /**
- * 组织架构同步服务
- * 负责从外部系统定期同步组织架构数据
+ * 组织架构同步服务实现类
+ * 实现ApplicationRunner接口，在应用启动时自动检查同步
  */
 @Slf4j
 @Service
-public class OrganizationSyncService implements ApplicationRunner {
+public class OrganizationSyncServiceImpl implements OrganizationSyncService, ApplicationRunner {
     
     private final OrganizationService organizationService;
     private final RestTemplate restTemplate;
@@ -33,89 +33,96 @@ public class OrganizationSyncService implements ApplicationRunner {
     @Value("${external.organization.sync.enabled:true}")
     private boolean syncEnabled;
     
-    public OrganizationSyncService(OrganizationService organizationService) {
+    public OrganizationSyncServiceImpl(OrganizationService organizationService) {
         this.organizationService = organizationService;
         this.restTemplate = new RestTemplate();
     }
     
-    /**
-     * 应用启动时检查是否需要同步
-     */
     @Override
     public void run(ApplicationArguments args) {
-        if (syncEnabled) {
-            log.info("🚀 应用启动，检查组织架构同步状态");
-            checkAndSync();
-        } else {
-            log.info("⚠️ 组织架构同步功能已禁用");
+        initializeSync();
+    }
+    
+    @Override
+    public String getServiceName() {
+        return "组织架构同步服务";
+    }
+    
+    @Override
+    public boolean needSync() {
+        if (!syncEnabled) {
+            log.debug("📋 {} - 同步功能已禁用", getServiceName());
+            return false;
+        }
+        return organizationService.needSync();
+    }
+    
+    @Override
+    public boolean executeSync() {
+        try {
+            log.info("🔄 {} - 开始执行同步操作", getServiceName());
+            
+            List<ExternalOrganizationDto> organizations = fetchExternalOrganizations();
+            if (organizations == null || organizations.isEmpty()) {
+                log.warn("⚠️ {} - 外部系统返回的数据为空", getServiceName());
+                return false;
+            }
+            
+            String version = "v1.0." + System.currentTimeMillis();
+            boolean success = syncOrganizations(organizations, version);
+            
+            if (success) {
+                log.info("✅ {} - 同步成功，版本: {}, 数量: {}", 
+                        getServiceName(), version, organizations.size());
+            } else {
+                log.error("❌ {} - 同步失败", getServiceName());
+            }
+            
+            return success;
+            
+        } catch (Exception e) {
+            log.error("💥 {} - 同步过程中发生异常: {}", getServiceName(), e.getMessage(), e);
+            return false;
         }
     }
     
-    /**
-     * 定时任务：每天凌晨2点检查并同步组织架构
-     */
+    @Override
     @Scheduled(cron = "0 0 2 * * ?")
     @Async
     public void scheduledSync() {
-        if (syncEnabled) {
-            log.info("⏰ 定时任务触发，检查组织架构同步");
-            checkAndSync();
+        log.info("⏰ {} - 定时任务触发", getServiceName());
+        if (needSync()) {
+            executeSync();
+        } else {
+            log.info("✨ {} - 数据较新，无需同步", getServiceName());
         }
     }
     
-    /**
-     * 手动触发同步检查
-     */
+    @Override
     @Async
     public void manualSync() {
-        log.info("🔧 手动触发组织架构同步检查");
-        checkAndSync();
+        log.info("🔧 {} - 手动触发同步", getServiceName());
+        executeSync();
     }
     
-    /**
-     * 检查并执行同步
-     */
-    private void checkAndSync() {
-        try {
-            // 1. 检查是否需要同步
-            if (!organizationService.needSync()) {
-                log.info("✨ 组织架构数据较新，无需同步");
-                return;
-            }
-            
-            // 2. 从外部系统获取数据
-            log.info("📡 正在从外部系统获取组织架构数据...");
-            ExternalOrganizationSyncData syncData = fetchFromExternalSystem();
-            
-            if (syncData == null || syncData.getOrganizations() == null || syncData.getOrganizations().isEmpty()) {
-                log.warn("⚠️ 外部系统返回的组织架构数据为空");
-                return;
-            }
-            
-            // 3. 执行同步
-            boolean success = organizationService.syncFromExternal(
-                syncData.getOrganizations(), 
-                syncData.getVersion()
-            );
-            
-            if (success) {
-                log.info("✅ 组织架构同步成功，版本: {}, 同步数量: {}", 
-                        syncData.getVersion(), syncData.getOrganizations().size());
+    @Override
+    public void initializeSync() {
+        if (syncEnabled) {
+            log.info("🚀 {} - 应用启动，检查同步状态", getServiceName());
+            if (needSync()) {
+                executeSync();
             } else {
-                log.error("❌ 组织架构同步失败");
+                log.info("✨ {} - 数据较新，无需同步", getServiceName());
             }
-            
-        } catch (Exception e) {
-            log.error("💥 组织架构同步过程中发生异常: {}", e.getMessage(), e);
+        } else {
+            log.info("⚠️ {} - 同步功能已禁用", getServiceName());
         }
     }
     
-    /**
-     * 从外部系统获取组织架构数据
-     */
-    private ExternalOrganizationSyncData fetchFromExternalSystem() {
+    @Override
+    public List<ExternalOrganizationDto> fetchExternalOrganizations() {
         try {
-            log.debug("🌐 调用外部API: {}", externalApiUrl);
+            log.debug("🌐 {} - 调用外部API: {}", getServiceName(), externalApiUrl);
             
             ResponseEntity<ExternalOrganizationSyncData> response = restTemplate.getForEntity(
                 externalApiUrl, 
@@ -124,26 +131,32 @@ public class OrganizationSyncService implements ApplicationRunner {
             
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 ExternalOrganizationSyncData data = response.getBody();
-                log.info("📊 成功获取外部组织架构数据，版本: {}, 数量: {}", 
+                log.info("📊 {} - 成功获取外部数据，版本: {}, 数量: {}", 
+                        getServiceName(),
                         data.getVersion(), 
                         data.getOrganizations() != null ? data.getOrganizations().size() : 0);
-                return data;
+                return data.getOrganizations();
             } else {
-                log.warn("⚠️ 外部系统返回异常状态: {}", response.getStatusCode());
-                return null;
+                log.warn("⚠️ {} - 外部系统返回异常状态: {}", getServiceName(), response.getStatusCode());
+                return createMockData();
             }
             
         } catch (Exception e) {
-            log.error("💥 调用外部系统失败: {}", e.getMessage());
+            log.error("💥 {} - 调用外部系统失败: {}", getServiceName(), e.getMessage());
             
             // 如果是本地开发环境，返回模拟数据
             if (isLocalDevelopment()) {
-                log.info("🧪 返回模拟组织架构数据用于测试");
+                log.info("🧪 {} - 返回模拟数据用于测试", getServiceName());
                 return createMockData();
             }
             
             return null;
         }
+    }
+    
+    @Override
+    public boolean syncOrganizations(List<ExternalOrganizationDto> organizations, String version) {
+        return organizationService.syncFromExternal(organizations, version);
     }
     
     /**
@@ -156,13 +169,8 @@ public class OrganizationSyncService implements ApplicationRunner {
     /**
      * 创建模拟数据（用于本地开发测试）
      */
-    private ExternalOrganizationSyncData createMockData() {
-        ExternalOrganizationSyncData mockData = new ExternalOrganizationSyncData();
-        mockData.setVersion("mock-v1.0." + System.currentTimeMillis());
-        mockData.setTimestamp(System.currentTimeMillis());
-        
-        // 创建模拟组织架构
-        List<ExternalOrganizationDto> mockOrgs = Arrays.asList(
+    private List<ExternalOrganizationDto> createMockData() {
+        return Arrays.asList(
             createMockOrg("1001", "总公司", "0", 0, "公司总部"),
             createMockOrg("1002", "技术中心", "1001", 1, "负责技术研发"),
             createMockOrg("1003", "市场部", "1001", 2, "负责市场营销"),
@@ -170,9 +178,6 @@ public class OrganizationSyncService implements ApplicationRunner {
             createMockOrg("1005", "后端团队", "1002", 2, "后端开发团队"),
             createMockOrg("1006", "运维团队", "1002", 3, "运维保障团队")
         );
-        
-        mockData.setOrganizations(mockOrgs);
-        return mockData;
     }
     
     /**
@@ -197,7 +202,6 @@ public class OrganizationSyncService implements ApplicationRunner {
         private List<ExternalOrganizationDto> organizations;
         private Long timestamp;
         
-        // Getters and Setters
         public String getVersion() { return version; }
         public void setVersion(String version) { this.version = version; }
         

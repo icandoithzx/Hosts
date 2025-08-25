@@ -5,6 +5,7 @@ import com.example.demo.dto.HeartbeatResponse;
 import com.example.demo.model.entity.Policy;
 import com.example.demo.model.enums.OnlineStatus;
 import com.example.demo.service.CacheAvailabilityService;
+import com.example.demo.service.DynamicCacheService;
 import com.example.demo.service.HeartbeatService;
 import com.example.demo.service.HostService;
 import com.example.demo.service.PolicyAdminService;
@@ -41,6 +42,9 @@ public class HeartbeatServiceImpl implements HeartbeatService {
     
     @Autowired
     private CacheAvailabilityService cacheAvailabilityService;
+    
+    @Autowired
+    private DynamicCacheService dynamicCacheService;
     
     @Autowired
     private HostService hostService;
@@ -141,38 +145,40 @@ public class HeartbeatServiceImpl implements HeartbeatService {
     }
 
     @Override
-    @Cacheable(value = "clientEffectivePolicies", key = "#clientId", condition = "@cacheAvailabilityService.isCacheAvailable()")
+    @Cacheable(value = "clientEffectivePolicies", key = "#clientId", condition = "@dynamicCacheService.isAvailable()")
     public Policy getClientEffectivePolicy(String clientId) {
         if (!StringUtils.hasText(clientId)) {
             return null;
         }
 
         try {
-            // 检查缓存是否可用
-            if (cacheAvailabilityService.isCacheAvailable()) {
-                // 先从Redis缓存获取
-                String cacheKey = POLICY_CACHE_PREFIX + clientId;
-                RMap<String, Object> cachedPolicy = redissonClient.getMap(cacheKey);
-                
-                if (!cachedPolicy.isEmpty()) {
-                    return reconstructPolicyFromCache(cachedPolicy);
-                }
-
-                // 缓存未命中，从数据库获取
-                Policy policy = policyAdminService.getEffectivePolicy(clientId);
-                
-                if (policy != null) {
-                    // 缓存到Redis
-                    cachePolicyToRedis(clientId, policy);
-                }
-                
+            // 使用动态缓存管理器获取缓存
+            String cacheKey = POLICY_CACHE_PREFIX + clientId;
+            Map<String, Object> cachedPolicy = dynamicCacheService.getMap(cacheKey);
+            
+            if (!cachedPolicy.isEmpty()) {
+                Policy policy = reconstructPolicyFromMap(cachedPolicy);
+                log.debug("🔍 从{}缓存获取策略: clientId={}, policyId={}", 
+                        dynamicCacheService.getCurrentMode(), clientId, policy.getId());
                 return policy;
-            } else {
-                // 缓存不可用，直接从数据库获取
-                return policyAdminService.getEffectivePolicy(clientId);
+            }
+
+            // 缓存未命中，从数据库获取
+            Policy policy = policyAdminService.getEffectivePolicy(clientId);
+            
+            if (policy != null) {
+                // 缓存策略数据
+                Map<String, Object> policyData = convertPolicyToMap(policy);
+                dynamicCacheService.putMap(cacheKey, policyData, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+                
+                log.debug("📝 策略已缓存到{}: clientId={}, policyId={}", 
+                        dynamicCacheService.getCurrentMode(), clientId, policy.getId());
             }
             
+            return policy;
+            
         } catch (Exception e) {
+            log.warn("⚠️ 缓存操作异常，降级到数据库查询: clientId={}, error={}", clientId, e.getMessage());
             // 缓存异常时降级到数据库查询
             return policyAdminService.getEffectivePolicy(clientId);
         }
@@ -185,37 +191,33 @@ public class HeartbeatServiceImpl implements HeartbeatService {
         }
 
         try {
-            // 检查缓存是否可用
-            if (cacheAvailabilityService.isCacheAvailable()) {
-                // 先从Redis哈希缓存获取
-                String hashCacheKey = POLICY_HASH_CACHE_PREFIX + clientId;
-                RMap<String, String> hashCache = redissonClient.getMap(hashCacheKey);
-                String cachedHash = hashCache.get("hash");
-                
-                if (StringUtils.hasText(cachedHash)) {
-                    return cachedHash;
-                }
+            // 使用动态缓存管理器获取哈希值
+            String hashCacheKey = POLICY_HASH_CACHE_PREFIX + clientId;
+            String cachedHash = dynamicCacheService.getString(hashCacheKey, "hash");
+            
+            if (StringUtils.hasText(cachedHash)) {
+                log.debug("🔍 从{}缓存获取策略哈希: clientId={}, hash={}", 
+                        dynamicCacheService.getCurrentMode(), clientId, cachedHash);
+                return cachedHash;
+            }
 
-                // 缓存未命中，重新计算
-                Policy policy = getClientEffectivePolicy(clientId);
-                if (policy != null) {
-                    String hash = calculatePolicyHash(policy);
-                    
-                    // 缓存哈希值
-                    hashCache.put("hash", hash);
-                    hashCache.expire(CACHE_TTL_MINUTES, TimeUnit.MINUTES);
-                    
-                    return hash;
-                }
-            } else {
-                // 缓存不可用，直接计算
-                Policy policy = getClientEffectivePolicy(clientId);
-                return policy != null ? calculatePolicyHash(policy) : null;
+            // 缓存未命中，重新计算
+            Policy policy = getClientEffectivePolicy(clientId);
+            if (policy != null) {
+                String hash = calculatePolicyHash(policy);
+                
+                // 缓存哈希值
+                dynamicCacheService.putString(hashCacheKey, "hash", hash, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+                
+                log.debug("📝 策略哈希已缓存到{}: clientId={}, hash={}", 
+                        dynamicCacheService.getCurrentMode(), clientId, hash);
+                return hash;
             }
             
             return null;
             
         } catch (Exception e) {
+            log.warn("⚠️ 缓存哈希操作异常，重新计算: clientId={}, error={}", clientId, e.getMessage());
             // 异常时重新计算
             Policy policy = getClientEffectivePolicy(clientId);
             return policy != null ? calculatePolicyHash(policy) : null;
@@ -228,9 +230,9 @@ public class HeartbeatServiceImpl implements HeartbeatService {
             return;
         }
 
-        // 检查缓存是否可用
-        if (!cacheAvailabilityService.isCacheAvailable()) {
-            // 缓存不可用，无需预热
+        // 检查动态缓存是否可用
+        if (!dynamicCacheService.isAvailable()) {
+            log.debug("💔 动态缓存不可用，无需预热: clientId={}", clientId);
             return;
         }
 
@@ -240,19 +242,23 @@ public class HeartbeatServiceImpl implements HeartbeatService {
                 // 预热策略缓存
                 Policy policy = policyAdminService.getEffectivePolicy(clientId);
                 if (policy != null) {
-                    cachePolicyToRedis(clientId, policy);
+                    // 缓存策略数据
+                    String cacheKey = POLICY_CACHE_PREFIX + clientId;
+                    Map<String, Object> policyData = convertPolicyToMap(policy);
+                    dynamicCacheService.putMap(cacheKey, policyData, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
                     
                     // 预热哈希缓存
                     String hash = calculatePolicyHash(policy);
                     String hashCacheKey = POLICY_HASH_CACHE_PREFIX + clientId;
-                    RMap<String, String> hashCache = redissonClient.getMap(hashCacheKey);
-                    hashCache.put("hash", hash);
-                    hashCache.expire(CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+                    dynamicCacheService.putString(hashCacheKey, "hash", hash, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+                    
+                    log.debug("🔥 客户端缓存预热完成({}): clientId={}, policyId={}", 
+                            dynamicCacheService.getCurrentMode(), clientId, policy.getId());
                 }
                 
             } catch (Exception e) {
                 // 预热失败不影响主流程，只记录错误
-                System.err.println("预热客户端缓存失败 [" + clientId + "]: " + e.getMessage());
+                log.warn("⚠️ 预热客户端缓存失败: clientId={}, error={}", clientId, e.getMessage());
             }
         });
     }
@@ -316,31 +322,7 @@ public class HeartbeatServiceImpl implements HeartbeatService {
         return "POLICY_UPDATED";
     }
 
-    /**
-     * 将策略缓存到Redis
-     */
-    private void cachePolicyToRedis(String clientId, Policy policy) {
-        try {
-            String cacheKey = POLICY_CACHE_PREFIX + clientId;
-            RMap<String, Object> cache = redissonClient.getMap(cacheKey);
-            
-            cache.put("id", policy.getId());
-            cache.put("name", policy.getName());
-            cache.put("description", policy.getDescription());
-            cache.put("status", policy.getStatus());
-            cache.put("version", policy.getVersion());
-            cache.put("priority", policy.getPriority());
-            cache.put("isDefault", policy.getIsDefault());
-            cache.put("updatedAt", policy.getUpdatedAt() != null ? policy.getUpdatedAt().toString() : null);
-            
-            // 设置过期时间
-            cache.expire(CACHE_TTL_MINUTES, TimeUnit.MINUTES);
-            
-        } catch (Exception e) {
-            // 缓存失败不影响主流程
-            System.err.println("缓存策略失败: " + e.getMessage());
-        }
-    }
+
 
     /**
      * 异步更新客户端在线状态
@@ -407,6 +389,34 @@ public class HeartbeatServiceImpl implements HeartbeatService {
         
         // 主线程立即返回，不等待异步任务完成
         log.trace("📤 客户端 {} 在线状态更新任务已提交到异步线程池", clientId);
+    }
+
+    /**
+     * 从Map重构策略对象
+     */
+    private Policy reconstructPolicyFromMap(Map<String, Object> policyData) {
+        try {
+            Policy policy = new Policy();
+            policy.setId((Long) policyData.get("id"));
+            policy.setName((String) policyData.get("name"));
+            policy.setDescription((String) policyData.get("description"));
+            policy.setStatus((String) policyData.get("status"));
+            policy.setVersion((String) policyData.get("version"));
+            policy.setPriority((Integer) policyData.get("priority"));
+            policy.setIsDefault((Boolean) policyData.get("isDefault"));
+            
+            String updatedAtStr = (String) policyData.get("updatedAt");
+            if (StringUtils.hasText(updatedAtStr)) {
+                policy.setUpdatedAt(java.time.LocalDateTime.parse(updatedAtStr));
+            }
+            
+            return policy;
+            
+        } catch (Exception e) {
+            log.warn("⚠️ 从缓存Map重构Policy对象失败: {}", e.getMessage());
+            // 重构失败返回null，会触发重新查询
+            return null;
+        }
     }
 
     /**

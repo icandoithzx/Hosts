@@ -5,10 +5,8 @@ import org.redisson.api.RedissonClient;
 import org.redisson.spring.cache.RedissonSpringCacheManager;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
-import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -19,10 +17,7 @@ import java.util.Map;
 
 /**
  * 缓存配置类
- * 支持缓存热插拔功能：
- * - 有Redis配置时自动使用Redis缓存
- * - 无Redis配置时自动降级到内存缓存
- * - 运行时Redis连接失败时自动降级
+ * 使用Redis作为主要缓存，通过动态缓存管理器实现降级
  */
 @Slf4j
 @Configuration
@@ -33,13 +28,13 @@ public class CacheConfig {
     private RedissonClient redissonClient;
 
     /**
-     * Redis缓存管理器（当RedissonClient可用时）- 优先使用
+     * Redis缓存管理器（主要缓存管理器）
      */
     @Bean("redisCacheManager")
     @ConditionalOnBean(RedissonClient.class)
     @Primary
     public CacheManager redisCacheManager() throws IOException {
-        log.info("✅ 配置Redis缓存管理器作为主要缓存管理器 - Redis缓存优先");
+        log.info("✅ 配置Redis缓存管理器作为主要缓存管理器");
         
         Map<String, org.redisson.spring.cache.CacheConfig> config = new HashMap<>();
         
@@ -87,26 +82,5 @@ public class CacheConfig {
 
         log.info("🚀 Redis缓存管理器创建成功，缓存配置项: {}", config.keySet());
         return new RedissonSpringCacheManager(redissonClient, config);
-    }
-
-    /**
-     * 内存缓存管理器（备用方案，仅当Redis不可用时使用）
-     */
-    @Bean("fallbackCacheManager")
-    @ConditionalOnMissingBean(name = "redisCacheManager")
-    public CacheManager fallbackCacheManager() {
-        log.warn("⚠️  Redis不可用，使用内存缓存管理器作为备用方案");
-        
-        ConcurrentMapCacheManager cacheManager = new ConcurrentMapCacheManager(
-                "policies", 
-                "clientPolicies", 
-                "heartbeatCache", 
-                "policyHash", 
-                "clientEffectivePolicies", 
-                "hosts",
-                "default"
-        );
-        log.info("💾 内存缓存管理器创建成功，缓存名称: {}", cacheManager.getCacheNames());
-        return cacheManager;
     }
 }
