@@ -15,6 +15,7 @@ CREATE TABLE hosts (
     online_status VARCHAR(20) NOT NULL DEFAULT 'OFFLINE' COMMENT '在线状态',
     auth_status VARCHAR(20) NOT NULL DEFAULT 'UNAUTHORIZED' COMMENT '授权状态',
     responsible_person VARCHAR(255) NOT NULL COMMENT '责任人',
+    user_id VARCHAR(100) COMMENT '关联用户ID',
     version VARCHAR(50) NOT NULL COMMENT '版本号',
     operating_system VARCHAR(255) NOT NULL COMMENT '操作系统',
     organization_id VARCHAR(100) NOT NULL COMMENT '组织架构ID',
@@ -39,6 +40,7 @@ CREATE INDEX idx_hosts_online_status ON hosts (online_status);
 CREATE INDEX idx_hosts_auth_status ON hosts (auth_status);
 CREATE INDEX idx_hosts_organization_id ON hosts (organization_id);
 CREATE INDEX idx_hosts_responsible_person ON hosts (responsible_person);
+CREATE INDEX idx_hosts_user_id ON hosts (user_id);
 CREATE INDEX idx_hosts_created_at ON hosts (created_at);
 CREATE INDEX idx_hosts_last_online_time ON hosts (last_online_time);
 
@@ -53,7 +55,7 @@ ALTER TABLE hosts ADD CONSTRAINT chk_online_status
     CHECK (online_status IN ('ONLINE', 'OFFLINE'));
 
 ALTER TABLE hosts ADD CONSTRAINT chk_auth_status 
-    CHECK (auth_status IN ('UNAUTHORIZED', 'AUTHORIZED', 'PENDING', 'REJECTED'));
+    CHECK (auth_status IN ('UNAUTHORIZED', 'AUTHORIZED'));
 
 -- =============================================================================
 -- 2. 策略表 (policies)
@@ -108,39 +110,48 @@ ALTER TABLE client_policy_mappings ADD CONSTRAINT fk_client_policy_policy_id
     FOREIGN KEY (policy_id) REFERENCES policies(id) ON DELETE CASCADE;
 
 -- =============================================================================
--- 4. 组织架构表 (organizations)
+-- 4. 组织架构表 (organizations) - 简化版本
 -- =============================================================================
 DROP TABLE IF EXISTS organizations;
 CREATE TABLE organizations (
-    id VARCHAR(100) NOT NULL COMMENT '组织ID，来自外部系统',
+    id VARCHAR(100) NOT NULL COMMENT '组织ID',
     name VARCHAR(255) NOT NULL COMMENT '组织名称',
     parent_id VARCHAR(100) NOT NULL DEFAULT '0' COMMENT '上级组织ID，根级别为"0"',
-    level INTEGER NOT NULL DEFAULT 1 COMMENT '组织级别',
-    path VARCHAR(1000) COMMENT '组织路径，如：1/2/3',
-    status INTEGER NOT NULL DEFAULT 1 COMMENT '组织状态（1-正常，0-停用）',
-    sort_order INTEGER NOT NULL DEFAULT 0 COMMENT '排序字段',
-    description CLOB COMMENT '描述信息',
-    source_system VARCHAR(100) NOT NULL DEFAULT 'external' COMMENT '数据来源标识',
-    external_version VARCHAR(100) COMMENT '外部系统的数据版本号',
-    last_sync_time TIMESTAMP NULL COMMENT '最后同步时间',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '更新时间',
+    leaf INTEGER NOT NULL DEFAULT 0 COMMENT '是否有子部门（0-无子部门/叶子节点，1-有子部门/非叶子节点）',
     PRIMARY KEY (id)
 );
 
 -- 创建索引
 CREATE INDEX idx_organizations_name ON organizations (name);
 CREATE INDEX idx_organizations_parent_id ON organizations (parent_id);
-CREATE INDEX idx_organizations_level ON organizations (level);
-CREATE INDEX idx_organizations_status ON organizations (status);
-CREATE INDEX idx_organizations_source_system ON organizations (source_system);
-CREATE INDEX idx_organizations_last_sync_time ON organizations (last_sync_time);
-CREATE INDEX idx_organizations_created_at ON organizations (created_at);
+CREATE INDEX idx_organizations_leaf ON organizations (leaf);
 
 -- 添加约束检查
-ALTER TABLE organizations ADD CONSTRAINT chk_org_status 
-    CHECK (status IN (0, 1));
+ALTER TABLE organizations ADD CONSTRAINT chk_org_leaf 
+    CHECK (leaf IN (0, 1));
 
 -- 为主机表添加外键约束（可选）
 -- ALTER TABLE hosts ADD CONSTRAINT fk_hosts_organization_id 
 --     FOREIGN KEY (organization_id) REFERENCES organizations(id);
+
+-- =============================================================================
+-- 5. 用户表 (users)
+-- =============================================================================
+DROP TABLE IF EXISTS users;
+CREATE TABLE users (
+    id VARCHAR(100) NOT NULL COMMENT '用户ID',
+    org_id VARCHAR(100) NOT NULL COMMENT '组织架构ID',
+    name VARCHAR(255) NOT NULL COMMENT '用户名称',
+    org_name VARCHAR(500) COMMENT '组织架构的全名称',
+    m_level INTEGER NOT NULL DEFAULT 0 COMMENT '用户的等级',
+    PRIMARY KEY (id)
+);
+
+-- 创建索引
+CREATE INDEX idx_users_org_id ON users (org_id);
+CREATE INDEX idx_users_name ON users (name);
+CREATE INDEX idx_users_m_level ON users (m_level);
+
+-- 添加约束检查
+ALTER TABLE users ADD CONSTRAINT chk_user_m_level 
+    CHECK (m_level >= 0 AND m_level <= 99);

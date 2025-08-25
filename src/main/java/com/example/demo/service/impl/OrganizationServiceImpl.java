@@ -50,8 +50,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Override
     public List<Organization> getAllOrganizations() {
         QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("status", 1)
-                   .orderByAsc("level", "sort_order", "name");
+        queryWrapper.orderByAsc("name");
         return organizationMapper.selectList(queryWrapper);
     }
     
@@ -72,17 +71,13 @@ public class OrganizationServiceImpl implements OrganizationService {
             log.info("🗑️ 已清空现有组织架构数据");
             
             // 2. 转换外部数据为内部实体
-            List<Organization> organizations = convertExternalToInternal(externalOrganizations, version);
+            List<Organization> organizations = convertExternalToInternal(externalOrganizations);
             
-            // 3. 计算层级和路径
-            calculateLevelAndPath(organizations);
+            // 3. 计算leaf字段
+            calculateLeafField(organizations);
             
             // 4. 批量插入新数据
-            LocalDateTime now = LocalDateTime.now();
             for (Organization org : organizations) {
-                org.setCreatedAt(now);
-                org.setUpdatedAt(now);
-                org.setLastSyncTime(now);
                 organizationMapper.insert(org);
             }
             
@@ -97,48 +92,21 @@ public class OrganizationServiceImpl implements OrganizationService {
     
     @Override
     public boolean needSync() {
-        // 同步策略：
-        // 1. 如果数据库为空，需要同步
-        // 2. 如果超过1天没有同步，需要同步
-        // 3. 如果外部系统版本比本地版本新，需要同步
-        
+        // 简化同步策略：如果数据库为空，需要同步
         Long count = organizationMapper.countAll();
         if (count == 0) {
             log.info("📋 组织架构数据为空，需要同步");
             return true;
         }
         
-        // 检查最后同步时间
-        QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
-        queryWrapper.select("MAX(last_sync_time) as last_sync_time");
-        Organization latestSync = organizationMapper.selectOne(queryWrapper);
-        
-        if (latestSync == null || latestSync.getLastSyncTime() == null) {
-            log.info("📅 未找到最后同步时间，需要同步");
-            return true;
-        }
-        
-        LocalDateTime lastSyncTime = latestSync.getLastSyncTime();
-        LocalDateTime oneDayAgo = LocalDateTime.now().minusDays(1);
-        
-        if (lastSyncTime.isBefore(oneDayAgo)) {
-            log.info("⏰ 距离上次同步超过1天，需要同步。上次同步时间: {}", lastSyncTime);
-            return true;
-        }
-        
-        log.debug("✨ 组织架构数据较新，暂不需要同步。上次同步时间: {}", lastSyncTime);
+        log.debug("✨ 组织架构数据存在，暂不需要同步");
         return false;
     }
     
     @Override
     public String getCurrentVersion() {
-        QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
-        queryWrapper.select("external_version")
-                   .orderByDesc("last_sync_time")
-                   .last("LIMIT 1");
-        
-        Organization latest = organizationMapper.selectOne(queryWrapper);
-        return latest != null ? latest.getExternalVersion() : null;
+        // 简化版本不再跟踪外部版本号
+        return "simplified-v1.0.0";
     }
     
     @Override
@@ -153,23 +121,16 @@ public class OrganizationServiceImpl implements OrganizationService {
         List<Organization> rootOrgs = organizationMapper.selectRootOrganizations();
         stats.put("rootCount", rootOrgs.size());
         
-        // 按级别统计
+        // 叶子节点和非叶子节点统计
         List<Organization> allOrgs = getAllOrganizations();
-        Map<Integer, Long> levelStats = allOrgs.stream()
+        Map<Integer, Long> leafStats = allOrgs.stream()
                 .collect(Collectors.groupingBy(
-                        Organization::getLevel,
+                        Organization::getLeaf,
                         Collectors.counting()
                 ));
-        stats.put("levelStats", levelStats);
+        stats.put("leafStats", leafStats);
         
-        // 最大层级
-        int maxLevel = allOrgs.stream()
-                .mapToInt(Organization::getLevel)
-                .max()
-                .orElse(0);
-        stats.put("maxLevel", maxLevel);
-        
-        // 最后同步时间
+        // 当前版本
         String currentVersion = getCurrentVersion();
         stats.put("currentVersion", currentVersion);
         
@@ -194,60 +155,33 @@ public class OrganizationServiceImpl implements OrganizationService {
     /**
      * 转换外部数据为内部实体
      */
-    private List<Organization> convertExternalToInternal(List<ExternalOrganizationDto> externalOrgs, String version) {
+    private List<Organization> convertExternalToInternal(List<ExternalOrganizationDto> externalOrgs) {
         return externalOrgs.stream()
                 .map(external -> {
                     Organization org = new Organization();
                     org.setId(external.getId());
                     org.setName(external.getName());
                     org.setParentId(external.getParentId() != null ? external.getParentId() : "0");
-                    org.setStatus(external.getStatus() != null ? external.getStatus() : 1);
-                    org.setSortOrder(external.getSortOrder() != null ? external.getSortOrder() : 0);
-                    org.setDescription(external.getDescription());
-                    org.setSourceSystem("external");
-                    org.setExternalVersion(version);
+                    org.setLeaf(0); // 默认为非叶子节点，后面会重新计算
                     return org;
                 })
                 .collect(Collectors.toList());
     }
     
     /**
-     * 计算组织层级和路径
+     * 计算leaf字段（是否有子部门）
      */
-    private void calculateLevelAndPath(List<Organization> organizations) {
-        Map<String, Organization> orgMap = organizations.stream()
-                .collect(Collectors.toMap(Organization::getId, org -> org));
+    private void calculateLeafField(List<Organization> organizations) {
+        // 创建 parentId -> children 的映射
+        Map<String, List<Organization>> parentChildrenMap = organizations.stream()
+                .collect(Collectors.groupingBy(Organization::getParentId));
         
         for (Organization org : organizations) {
-            calculateSingleOrgLevelAndPath(org, orgMap);
-        }
-    }
-    
-    /**
-     * 计算单个组织的层级和路径
-     */
-    private void calculateSingleOrgLevelAndPath(Organization org, Map<String, Organization> orgMap) {
-        if (org.getLevel() != null && org.getPath() != null) {
-            return; // 已经计算过
-        }
-        
-        if ("0".equals(org.getParentId())) {
-            // 根级别组织
-            org.setLevel(1);
-            org.setPath(org.getId());
-        } else {
-            // 子组织，需要先计算父组织
-            Organization parent = orgMap.get(org.getParentId());
-            if (parent != null) {
-                calculateSingleOrgLevelAndPath(parent, orgMap);
-                org.setLevel(parent.getLevel() + 1);
-                org.setPath(parent.getPath() + "/" + org.getId());
+            List<Organization> children = parentChildrenMap.get(org.getId());
+            if (children != null && !children.isEmpty()) {
+                org.setLeaf(1); // 有子部门，非叶子节点
             } else {
-                // 找不到父组织，当作根级别处理
-                log.warn("⚠️ 组织 {} 的父组织 {} 不存在，当作根级别处理", org.getId(), org.getParentId());
-                org.setLevel(1);
-                org.setPath(org.getId());
-                org.setParentId("0");
+                org.setLeaf(0); // 无子部门，叶子节点
             }
         }
     }

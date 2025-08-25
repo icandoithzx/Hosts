@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.demo.mapper.UserMapper">
+
+    <!-- 根据组织ID查询用户 -->
+    <select id="selectByOrgId" parameterType="string" resultType="com.example.demo.model.entity.User">
+        SELECT * FROM users 
+        WHERE org_id = #{orgId} 
+        ORDER BY m_level DESC, name
+    </select>
+
+    <!-- 根据用户等级查询用户 -->
+    <select id="selectByMLevel" parameterType="int" resultType="com.example.demo.model.entity.User">
+        SELECT * FROM users 
+        WHERE m_level = #{mLevel} 
+        ORDER BY name
+    </select>
+
+    <!-- 批量删除所有用户（用于全量同步前清空） -->
+    <delete id="deleteAll">
+        DELETE FROM users
+    </delete>
+
+    <!-- 查询用户总数 -->
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM users
+    </select>
+
+</mapper>

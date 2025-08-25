@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.demo.mapper.HostMapper">
+
+    <!-- 分页查询主机列表（支持JOIN查询用户名） -->
+    <select id="selectHostsWithUserPage" resultType="com.example.demo.model.entity.Host">
+        SELECT 
+            h.id,
+            h.host_name,
+            h.ip_address,
+            h.mac_address,
+            h.terminal_type,
+            h.host_status,
+            h.online_status,
+            h.auth_status,
+            h.responsible_person,
+            h.user_id,
+            h.version,
+            h.operating_system,
+            h.organization_id,
+            h.last_online_time,
+            h.auth_time,
+            h.remarks,
+            h.created_at,
+            h.updated_at
+        FROM hosts h
+        LEFT JOIN users u ON h.user_id = u.id
+        <where>
+            <if test="query.hostName != null and query.hostName.trim() != ''">
+                AND h.host_name LIKE CONCAT('%', #{query.hostName}, '%')
+            </if>
+            <if test="query.ipOrMacAddress != null and query.ipOrMacAddress.trim() != ''">
+                AND (h.ip_address LIKE CONCAT('%', #{query.ipOrMacAddress}, '%') 
+                     OR h.mac_address LIKE CONCAT('%', #{query.ipOrMacAddress}, '%'))
+            </if>
+            <if test="query.terminalType != null">
+                AND h.terminal_type = #{query.terminalType}
+            </if>
+            <if test="query.hostStatus != null">
+                AND h.host_status = #{query.hostStatus}
+            </if>
+            <if test="query.onlineStatus != null">
+                AND h.online_status = #{query.onlineStatus}
+            </if>
+            <if test="query.authStatus != null">
+                AND h.auth_status = #{query.authStatus}
+            </if>
+            <!-- 支持通过责任人（h.responsible_person）或用户名（u.name）查询 -->
+            <if test="query.responsiblePerson != null and query.responsiblePerson.trim() != ''">
+                AND (h.responsible_person LIKE CONCAT('%', #{query.responsiblePerson}, '%')
+                     OR u.name LIKE CONCAT('%', #{query.responsiblePerson}, '%'))
+            </if>
+            <if test="query.organizationId != null and query.organizationId.trim() != ''">
+                AND h.organization_id = #{query.organizationId}
+            </if>
+            <if test="query.createdAtStart != null">
+                AND h.created_at >= #{query.createdAtStart}
+            </if>
+            <if test="query.createdAtEnd != null">
+                AND h.created_at &lt;= #{query.createdAtEnd}
+            </if>
+            <if test="query.lastOnlineTimeStart != null">
+                AND h.last_online_time >= #{query.lastOnlineTimeStart}
+            </if>
+            <if test="query.lastOnlineTimeEnd != null">
+                AND h.last_online_time &lt;= #{query.lastOnlineTimeEnd}
+            </if>
+        </where>
+        <choose>
+            <when test="query.sortBy != null and query.sortBy.trim() != ''">
+                ORDER BY 
+                <choose>
+                    <when test="query.sortBy == 'hostName'">h.host_name</when>
+                    <when test="query.sortBy == 'ipAddress'">h.ip_address</when>
+                    <when test="query.sortBy == 'responsiblePerson'">h.responsible_person</when>
+                    <when test="query.sortBy == 'createdAt'">h.created_at</when>
+                    <when test="query.sortBy == 'lastOnlineTime'">h.last_online_time</when>
+                    <otherwise>h.created_at</otherwise>
+                </choose>
+                <choose>
+                    <when test="query.sortDirection != null and query.sortDirection.toUpperCase() == 'ASC'">ASC</when>
+                    <otherwise>DESC</otherwise>
+                </choose>
+            </when>
+            <otherwise>
+                ORDER BY h.created_at DESC
+            </otherwise>
+        </choose>
+    </select>
+
+</mapper>

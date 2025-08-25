@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.demo.mapper.ClientPolicyMappingMapper">
+
+    <!-- 这里可以添加ClientPolicyMapping相关的自定义SQL查询 -->
+    <!-- 目前ClientPolicyMappingMapper只使用MyBatis Plus的基础功能 -->
+    
+    <!-- 示例：根据客户端ID查询策略映射 -->
+    <!--
+    <select id="selectByClientId" parameterType="string" resultType="com.example.demo.model.entity.ClientPolicyMapping">
+        SELECT * FROM client_policy_mappings 
+        WHERE client_id = #{clientId} 
+        AND is_active = true
+        ORDER BY assigned_at DESC
+    </select>
+    -->
+
+</mapper>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.demo.mapper.OrganizationMapper">
+
+    <!-- 根据上级组织ID查询子组织 -->
+    <select id="selectByParentId" parameterType="string" resultType="com.example.demo.model.entity.Organization">
+        SELECT * FROM organizations 
+        WHERE parent_id = #{parentId} 
+        ORDER BY name
+    </select>
+
+    <!-- 查询所有根级别组织 -->
+    <select id="selectRootOrganizations" resultType="com.example.demo.model.entity.Organization">
+        SELECT * FROM organizations 
+        WHERE parent_id = '0' 
+        ORDER BY name
+    </select>
+
+    <!-- 批量删除所有组织（用于全量同步前清空） -->
+    <delete id="deleteAll">
+        DELETE FROM organizations
+    </delete>
+
+    <!-- 查询组织总数 -->
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM organizations
+    </select>
+
+</mapper>

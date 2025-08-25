@@ -9,35 +9,41 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * 组织架构实体类
- * 简化版本，只包含核心字段
+ * 用户实体类
+ * 从外部系统同步的用户数据
  */
 @Data
-@TableName("organizations")
-public class Organization implements Serializable {
+@TableName("users")
+public class User implements Serializable {
     
     /**
-     * 组织ID
+     * 用户ID
      */
     @TableId(type = IdType.INPUT)
     @TableField("id")
     private String id;
     
     /**
-     * 组织名称
+     * 组织架构ID
+     */
+    @TableField("org_id")
+    private String orgId;
+    
+    /**
+     * 用户名称
      */
     @TableField("name")
     private String name;
     
     /**
-     * 上级组织ID，根级别组织为"0"
+     * 组织架构的全名称
      */
-    @TableField("parent_id")
-    private String parentId;
+    @TableField("org_name")
+    private String orgName;
     
     /**
-     * 是否有子部门（0-无子部门/叶子节点，1-有子部门/非叶子节点）
+     * 用户的等级
      */
-    @TableField("leaf")
-    private Integer leaf;
+    @TableField("m_level")
+    private Integer mLevel;
 }

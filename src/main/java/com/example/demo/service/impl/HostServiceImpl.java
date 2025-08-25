@@ -27,8 +27,11 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -145,6 +148,13 @@ public class HostServiceImpl implements HostService {
         }
 
         Page<Host> page = new Page<>(queryDto.getPage(), queryDto.getSize());
+        
+        // 如果查询条件中包含责任人搜索，使用JOIN查询
+        if (StringUtils.hasText(queryDto.getResponsiblePerson())) {
+            return hostMapper.selectHostsWithUserPage(page, queryDto);
+        }
+        
+        // 否则使用原有的查询方式
         QueryWrapper<Host> queryWrapper = buildQueryWrapper(queryDto);
 
         // 排序
@@ -180,6 +190,28 @@ public class HostServiceImpl implements HostService {
             return;
         }
 
+        // 先获取主机信息，用于检查状态是否变化
+        Host existingHost = hostMapper.selectById(hostId);
+        if (existingHost == null) {
+            return;
+        }
+        
+        // 性能优化：只在状态真正发生变化时才执行更新
+        if (existingHost.getOnlineStatus() == onlineStatus) {
+            // 状态未变化，但如果是设置为在线，需要更新最后在线时间
+            if (onlineStatus == OnlineStatus.ONLINE) {
+                // 只更新时间字段，不触发缓存清除
+                Host timeUpdateHost = new Host();
+                timeUpdateHost.setId(hostId);
+                timeUpdateHost.setLastOnlineTime(LocalDateTime.now());
+                timeUpdateHost.setUpdatedAt(LocalDateTime.now());
+                hostMapper.updateById(timeUpdateHost);
+                log.debug("🔄 更新主机 {} 最后在线时间", hostId);
+            }
+            return; // 状态未变化，早期返回
+        }
+
+        // 状态发生变化，执行完整的更新流程
         Host host = new Host();
         host.setId(hostId);
         host.setOnlineStatus(onlineStatus);
@@ -190,6 +222,12 @@ public class HostServiceImpl implements HostService {
         }
 
         hostMapper.updateById(host);
+        
+        // 清除组织级别的缓存
+        evictOrganizationHostsCache(existingHost.getOrganizationId());
+        
+        log.info("🟢 主机 {} 在线状态已更新: {} -> {}", 
+                hostId, existingHost.getOnlineStatus(), onlineStatus);
     }
 
     @Override
@@ -197,6 +235,12 @@ public class HostServiceImpl implements HostService {
     @CacheEvict(value = "hosts", key = "#hostId", condition = "@cacheAvailabilityService.isCacheAvailable()")
     public void updateAuthStatus(Long hostId, AuthStatus authStatus) {
         if (hostId == null || authStatus == null) {
+            return;
+        }
+
+        // 先获取主机信息，用于清除组织缓存
+        Host existingHost = hostMapper.selectById(hostId);
+        if (existingHost == null) {
             return;
         }
 
@@ -210,14 +254,27 @@ public class HostServiceImpl implements HostService {
         }
 
         hostMapper.updateById(host);
+        
+        // 清除组织级别的缓存
+        evictOrganizationHostsCache(existingHost.getOrganizationId());
     }
 
     @Override
     @Transactional
-    @CacheEvict(value = "hosts", allEntries = true, condition = "@cacheAvailabilityService.isCacheAvailable()")
     public void batchUpdateAuthStatus(List<Long> hostIds, AuthStatus authStatus) {
         if (hostIds == null || hostIds.isEmpty() || authStatus == null) {
             return;
+        }
+
+        // 获取受影响的组织ID集合
+        Set<String> affectedOrganizations = new HashSet<>();
+        if (cacheAvailabilityService.isCacheAvailable()) {
+            // 批量获取主机信息，用于后续清除缓存
+            List<Host> existingHosts = hostMapper.selectBatchIds(hostIds);
+            affectedOrganizations = existingHosts.stream()
+                    .map(Host::getOrganizationId)
+                    .filter(StringUtils::hasText)
+                    .collect(Collectors.toSet());
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -232,6 +289,19 @@ public class HostServiceImpl implements HostService {
             }
 
             hostMapper.updateById(host);
+            
+            // 清除单个主机缓存
+            if (cacheAvailabilityService.isCacheAvailable() && cacheManager != null) {
+                Cache hostsCache = cacheManager.getCache("hosts");
+                if (hostsCache != null) {
+                    hostsCache.evict(hostId);
+                }
+            }
+        }
+        
+        // 清除受影响的组织级别缓存
+        for (String organizationId : affectedOrganizations) {
+            evictOrganizationHostsCache(organizationId);
         }
     }
 
@@ -411,6 +481,7 @@ public class HostServiceImpl implements HostService {
         entity.setOnlineStatus(dto.getOnlineStatus());
         entity.setAuthStatus(dto.getAuthStatus());
         entity.setResponsiblePerson(dto.getResponsiblePerson());
+        entity.setUserId(dto.getUserId());
         entity.setVersion(dto.getVersion());
         entity.setOperatingSystem(dto.getOperatingSystem());
         entity.setOrganizationId(dto.getOrganizationId());
@@ -419,6 +490,30 @@ public class HostServiceImpl implements HostService {
         entity.setRemarks(dto.getRemarks());
 
         return entity;
+    }
+    
+    /**
+     * 清除组织级别的主机缓存
+     * @param organizationId 组织ID
+     */
+    private void evictOrganizationHostsCache(String organizationId) {
+        if (!StringUtils.hasText(organizationId)) {
+            return;
+        }
+        
+        try {
+            if (cacheAvailabilityService.isCacheAvailable() && cacheManager != null) {
+                Cache hostsCache = cacheManager.getCache("hosts");
+                if (hostsCache != null) {
+                    // 清除组织级别的缓存
+                    String orgCacheKey = "org:" + organizationId;
+                    hostsCache.evict(orgCacheKey);
+                    log.debug("🗑️ 已清除组织级别缓存: {}", orgCacheKey);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ 清除组织级别缓存失败: organizationId={}, error={}", organizationId, e.getMessage());
+        }
     }
     
     /**

@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.dto.HeartbeatRequest;
 import com.example.demo.dto.HeartbeatResponse;
 import com.example.demo.model.entity.Policy;
 
@@ -13,6 +14,15 @@ public interface HeartbeatService {
      * @return 一个 {@link HeartbeatResponse} 响应对象
      */
     HeartbeatResponse checkPolicies(String clientId, String clientPoliciesHash);
+    
+    /**
+     * 处理客户端心跳请求（新增）
+     * 支持更详细的心跳信息，包括客户端状态更新
+     *
+     * @param request 心跳请求对象
+     * @return 心跳响应对象
+     */
+    HeartbeatResponse handleHeartbeat(HeartbeatRequest request);
 
     /**
      * 获取客户端当前最新的生效策略（高并发缓存版本）。

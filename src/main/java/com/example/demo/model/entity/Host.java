@@ -47,6 +47,9 @@ public class Host implements Serializable {
     @TableField("responsible_person")
     private String responsiblePerson; // 责任人
 
+    @TableField("user_id")
+    private String userId; // 关联用户ID
+
     @TableField("version")
     private String version; // 版本号
 

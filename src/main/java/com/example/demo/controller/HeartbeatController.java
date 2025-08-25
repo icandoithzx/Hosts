@@ -4,27 +4,39 @@ import com.example.demo.dto.HeartbeatRequest;
 import com.example.demo.dto.HeartbeatResponse;
 import com.example.demo.model.entity.Policy;
 import com.example.demo.service.HeartbeatService;
+import com.example.demo.service.impl.HostOnlineStatusMonitorService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1")
 public class HeartbeatController {
 
     private final HeartbeatService heartbeatService;
+    private final HostOnlineStatusMonitorService monitorService;
 
-    public HeartbeatController(HeartbeatService heartbeatService) {
+    public HeartbeatController(HeartbeatService heartbeatService, HostOnlineStatusMonitorService monitorService) {
         this.heartbeatService = heartbeatService;
+        this.monitorService = monitorService;
     }
 
     @PostMapping("/heartbeat")
     public HeartbeatResponse handleHeartbeat(@RequestBody HeartbeatRequest request) {
-        // 控制器层非常简洁，直接调用服务层的方法并返回其结果。
-        // 所有的核心逻辑都封装在服务层中。
-        return heartbeatService.checkPolicies(
-            request.getClientId(),
-            request.getCurrentPoliciesHash()
-        );
+        // 使用新的handleHeartbeat方法，支持更详细的心跳信息处理
+        return heartbeatService.handleHeartbeat(request);
+    }
+    
+    /**
+     * 兼容性接口：简单的策略检查（旧版本兼容）
+     */
+    @PostMapping("/check-policies")
+    public HeartbeatResponse checkPolicies(@RequestBody Map<String, String> request) {
+        String clientId = request.get("clientId");
+        String currentPoliciesHash = request.get("currentPoliciesHash");
+        
+        return heartbeatService.checkPolicies(clientId, currentPoliciesHash);
     }
 
     /**
@@ -67,5 +79,14 @@ public class HeartbeatController {
         }
         
         return ResponseEntity.ok(hash);
+    }
+    
+    /**
+     * 获取主机在线统计信息（新增）
+     */
+    @GetMapping("/online-statistics")
+    public ResponseEntity<HostOnlineStatusMonitorService.HostOnlineStatistics> getOnlineStatistics() {
+        HostOnlineStatusMonitorService.HostOnlineStatistics statistics = monitorService.getOnlineStatistics();
+        return ResponseEntity.ok(statistics);
     }
 }

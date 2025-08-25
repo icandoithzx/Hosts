@@ -1,12 +1,16 @@
 package com.example.demo.service.impl;
 
+import com.example.demo.dto.HeartbeatRequest;
 import com.example.demo.dto.HeartbeatResponse;
 import com.example.demo.model.entity.Policy;
+import com.example.demo.model.enums.OnlineStatus;
 import com.example.demo.service.CacheAvailabilityService;
 import com.example.demo.service.HeartbeatService;
+import com.example.demo.service.HostService;
 import com.example.demo.service.PolicyAdminService;
 import org.redisson.api.RMap;
 import org.redisson.api.RedissonClient;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -18,11 +22,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 /**
  * 心跳服务实现类
  * 提供高并发、多层缓存的心跳检查和策略管理功能
  */
+@Slf4j
 @Service
 public class HeartbeatServiceImpl implements HeartbeatService {
 
@@ -34,6 +41,19 @@ public class HeartbeatServiceImpl implements HeartbeatService {
     
     @Autowired
     private CacheAvailabilityService cacheAvailabilityService;
+    
+    @Autowired
+    private HostService hostService;
+    
+    // 异步执行器，用于在线状态更新
+    private final Executor onlineStatusUpdateExecutor = Executors.newFixedThreadPool(
+            Math.max(2, Runtime.getRuntime().availableProcessors() / 2),
+            r -> {
+                Thread t = new Thread(r, "heartbeat-online-status-updater");
+                t.setDaemon(true); // 设置为守护线程
+                return t;
+            }
+    );
 
     // 缓存配置常量
     private static final String POLICY_CACHE_PREFIX = "heartbeat:policy:";
@@ -48,6 +68,9 @@ public class HeartbeatServiceImpl implements HeartbeatService {
         }
 
         try {
+            // “心跳”逻辑：更新客户端在线状态
+            updateClientOnlineStatus(clientId);
+            
             // 获取客户端当前生效的策略
             Policy effectivePolicy = getClientEffectivePolicy(clientId);
             
@@ -70,15 +93,50 @@ public class HeartbeatServiceImpl implements HeartbeatService {
                 HeartbeatResponse response = new HeartbeatResponse(true, updateType, policyData, "策略需要更新");
                 response.setLatestPoliciesHash(currentPolicyHash);
                 
+                log.info("🔄 客户端 {} 策略需要更新，类型: {}", clientId, updateType);
                 return response;
             } else {
                 // 不需要更新
+                log.debug("✅ 客户端 {} 策略已是最新", clientId);
                 return new HeartbeatResponse(false, "UP_TO_DATE", null, "策略已是最新");
             }
             
         } catch (Exception e) {
             // 异常处理
+            log.error("⚠️ 客户端 {} 心跳检查失败", clientId, e);
             return new HeartbeatResponse(false, "ERROR", null, "检查策略时发生错误: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public HeartbeatResponse handleHeartbeat(HeartbeatRequest request) {
+        // 参数验证
+        if (request == null || !StringUtils.hasText(request.getClientId())) {
+            return new HeartbeatResponse(false, "INVALID_REQUEST", null, "无效的心跳请求");
+        }
+
+        try {
+            String clientId = request.getClientId();
+            log.info("💓 收到客户端 {} 的心跳信号，版本: {}", 
+                    clientId, request.getClientVersion());
+            
+            // “心跳”逻辑：更新客户端在线状态
+            updateClientOnlineStatus(clientId);
+            
+            // 检查策略是否需要更新
+            HeartbeatResponse response = checkPolicies(
+                    clientId, 
+                    request.getCurrentPoliciesHash()
+            );
+            
+            // 在响应中添加心跳相关信息
+            response.setServerTimestamp(System.currentTimeMillis());
+            
+            return response;
+            
+        } catch (Exception e) {
+            log.error("⚠️ 处理客户端 {} 心跳失败", request.getClientId(), e);
+            return new HeartbeatResponse(false, "ERROR", null, "心跳处理失败: " + e.getMessage());
         }
     }
 
@@ -282,6 +340,73 @@ public class HeartbeatServiceImpl implements HeartbeatService {
             // 缓存失败不影响主流程
             System.err.println("缓存策略失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 异步更新客户端在线状态
+     * 通过客户端ID（通常为MAC地址）查找主机并更新在线状态
+     * 使用异步线程池执行，避免阻塞主线程，提高心跳接口响应性能
+     * 
+     * @param clientId 客户端ID（可能是MAC地址或其他唯一标识）
+     */
+    private void updateClientOnlineStatus(String clientId) {
+        if (!StringUtils.hasText(clientId)) {
+            return;
+        }
+        
+        // 异步执行在线状态更新，不阻塞心跳主流程
+        CompletableFuture.runAsync(() -> {
+            try {
+                // 尝试通过不同方式查找主机
+                
+                // 方式1：尝试以clientId作为MAC地址查找
+                com.example.demo.model.entity.Host host = hostService.getHostByMacAddress(clientId);
+                
+                // 方式2：如果上面没找到，尝试以clientId作为主机ID查找
+                if (host == null) {
+                    try {
+                        Long hostId = Long.parseLong(clientId);
+                        host = hostService.getHostById(hostId);
+                    } catch (NumberFormatException e) {
+                        // clientId不是数字，忽略这个尝试
+                        log.trace("客户端ID {} 不是数字格式，跳过按ID查找", clientId);
+                    }
+                }
+                
+                // 方式3：如果还是没找到，可能需要其他逻辑（比如通过主机名查找）
+                // 这里可以根据实际业务需求扩展
+                
+                if (host != null) {
+                    // 找到主机，更新在线状态
+                    long startTime = System.currentTimeMillis();
+                    hostService.updateOnlineStatus(host.getId(), OnlineStatus.ONLINE);
+                    long duration = System.currentTimeMillis() - startTime;
+                    
+                    log.debug("🟢 客户端 {} 在线状态已更新，主机ID: {}, 主机名: {}, 耗时: {}ms", 
+                            clientId, host.getId(), host.getHostName(), duration);
+                            
+                    // 如果更新耗时过长，记录警告
+                    if (duration > 1000) {
+                        log.warn("⚠️ 客户端 {} 在线状态更新耗时过长: {}ms", clientId, duration);
+                    }
+                } else {
+                    // 未找到对应主机，记录信息但不影响主流程
+                    log.debug("⚠️ 未找到客户端ID {} 对应的主机记录", clientId);
+                }
+                
+            } catch (Exception e) {
+                // 更新在线状态失败不影响主流程，只记录错误
+                log.warn("⚠️ 异步更新客户端 {} 在线状态失败", clientId, e);
+            }
+        }, onlineStatusUpdateExecutor)
+        .whenComplete((result, throwable) -> {
+            if (throwable != null) {
+                log.error("⚠️ 客户端 {} 在线状态异步更新任务执行异常", clientId, throwable);
+            }
+        });
+        
+        // 主线程立即返回，不等待异步任务完成
+        log.trace("📤 客户端 {} 在线状态更新任务已提交到异步线程池", clientId);
     }
 
     /**

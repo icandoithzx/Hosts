@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.demo.mapper.PolicyMapper">
+
+    <!-- 这里可以添加Policy相关的自定义SQL查询 -->
+    <!-- 目前PolicyMapper只使用MyBatis Plus的基础功能 -->
+    
+    <!-- 示例：根据组织ID和状态查询策略 -->
+    <!--
+    <select id="selectByOrganizationAndStatus" resultType="com.example.demo.model.entity.Policy">
+        SELECT * FROM policies 
+        WHERE organization_id = #{organizationId} 
+        AND status = #{status}
+        ORDER BY priority DESC
+    </select>
+    -->
+
+</mapper>

@@ -5,9 +5,7 @@ package com.example.demo.model.enums;
  */
 public enum AuthStatus {
     UNAUTHORIZED("UNAUTHORIZED", "未授权"),
-    AUTHORIZED("AUTHORIZED", "已授权"),
-    PENDING("PENDING", "待审核"),
-    REJECTED("REJECTED", "已拒绝");
+    AUTHORIZED("AUTHORIZED", "已授权");
 
     private final String code;
     private final String description;

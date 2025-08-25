@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -140,11 +141,10 @@ public class OrganizationController {
             boolean needSync = organizationService.needSync();
             String currentVersion = organizationService.getCurrentVersion();
             
-            Map<String, Object> result = Map.of(
-                "needSync", needSync,
-                "currentVersion", currentVersion != null ? currentVersion : "未知",
-                "message", needSync ? "需要同步组织架构" : "组织架构数据较新"
-            );
+            Map<String, Object> result = new HashMap<>();
+            result.put("needSync", needSync);
+            result.put("currentVersion", currentVersion != null ? currentVersion : "未知");
+            result.put("message", needSync ? "需要同步组织架构" : "组织架构数据较新");
             
             return ResponseEntity.ok(ApiResponse.success(result));
         } catch (Exception e) {

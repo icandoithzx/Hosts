@@ -17,8 +17,9 @@ CREATE TABLE `hosts` (
     `terminal_type` ENUM('PC', 'SERVER', 'MOBILE', 'TABLET', 'EMBEDDED', 'OTHER') NOT NULL DEFAULT 'PC' COMMENT '终端类型',
     `host_status` ENUM('ACTIVE', 'INACTIVE', 'MAINTENANCE', 'DISABLED') NOT NULL DEFAULT 'ACTIVE' COMMENT '主机状态',
     `online_status` ENUM('ONLINE', 'OFFLINE') NOT NULL DEFAULT 'OFFLINE' COMMENT '在线状态',
-    `auth_status` ENUM('UNAUTHORIZED', 'AUTHORIZED', 'PENDING', 'REJECTED') NOT NULL DEFAULT 'UNAUTHORIZED' COMMENT '授权状态',
+    `auth_status` ENUM('UNAUTHORIZED', 'AUTHORIZED') NOT NULL DEFAULT 'UNAUTHORIZED' COMMENT '授权状态',
     `responsible_person` VARCHAR(255) NOT NULL COMMENT '责任人',
+    `user_id` VARCHAR(100) COMMENT '关联用户ID',
     `version` VARCHAR(50) NOT NULL COMMENT '版本号',
     `operating_system` VARCHAR(255) NOT NULL COMMENT '操作系统',
     `organization_id` BIGINT NOT NULL COMMENT '组织架构ID',
@@ -38,9 +39,27 @@ CREATE TABLE `hosts` (
     KEY `idx_hosts_auth_status` (`auth_status`),
     KEY `idx_hosts_organization_id` (`organization_id`),
     KEY `idx_hosts_responsible_person` (`responsible_person`),
+    KEY `idx_hosts_user_id` (`user_id`),
     KEY `idx_hosts_created_at` (`created_at`),
     KEY `idx_hosts_last_online_time` (`last_online_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='主机注册表';
+
+-- =============================================================================
+-- 1.1. 用户表 (users)
+-- =============================================================================
+DROP TABLE IF EXISTS `users`;
+CREATE TABLE `users` (
+    `id` VARCHAR(100) NOT NULL COMMENT '用户ID',
+    `org_id` VARCHAR(100) NOT NULL COMMENT '组织架构ID',
+    `name` VARCHAR(255) NOT NULL COMMENT '用户名称',
+    `org_name` VARCHAR(500) COMMENT '组织架构的全名称',
+    `m_level` INTEGER NOT NULL DEFAULT 0 COMMENT '用户的等级',
+    PRIMARY KEY (`id`),
+    KEY `idx_users_org_id` (`org_id`),
+    KEY `idx_users_name` (`name`),
+    KEY `idx_users_m_level` (`m_level`),
+    CONSTRAINT `chk_user_m_level` CHECK (`m_level` >= 0 AND `m_level` <= 99)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
 
 -- =============================================================================
 -- 2. 插入示例数据
@@ -56,6 +75,7 @@ INSERT INTO `hosts` (
     `online_status`,
     `auth_status`,
     `responsible_person`,
+    `user_id`,
     `version`,
     `operating_system`,
     `organization_id`,
@@ -75,6 +95,7 @@ INSERT INTO `hosts` (
     'ONLINE',
     'AUTHORIZED',
     '张三',
+    'USR001',
     '1.0.0',
     'Windows 11 Pro',
     1001,
@@ -94,6 +115,7 @@ INSERT INTO `hosts` (
     'ONLINE',
     'AUTHORIZED',
     '李四',
+    'USR002',
     '2.1.0',
     'Ubuntu 20.04 LTS',
     1002,
@@ -111,8 +133,9 @@ INSERT INTO `hosts` (
     'MOBILE',
     'ACTIVE',
     'OFFLINE',
-    'PENDING',
+    'UNAUTHORIZED',
     '王五',
+    'USR003',
     '1.2.3',
     'Android 12',
     1001,
@@ -132,6 +155,7 @@ INSERT INTO `hosts` (
     'OFFLINE',
     'UNAUTHORIZED',
     '赵六',
+    'USR004',
     '0.9.5',
     'Windows 10 Pro',
     1003,
@@ -140,6 +164,50 @@ INSERT INTO `hosts` (
     '测试机器，待维护',
     NOW(),
     NOW()
+);
+
+-- 插入示例用户数据
+INSERT INTO `users` (
+    `id`,
+    `org_id`,
+    `name`,
+    `org_name`,
+    `m_level`
+) VALUES 
+(
+    'USR001',
+    '1001',
+    '张三',
+    '总公司',
+    5
+),
+(
+    'USR002',
+    '1002',
+    '李四',
+    '总公司/技术中心',
+    4
+),
+(
+    'USR003',
+    '1004',
+    '王五',
+    '总公司/技术中心/前端团队',
+    3
+),
+(
+    'USR004',
+    '1005',
+    '赵六',
+    '总公司/技术中心/后端团队',
+    3
+),
+(
+    'USR005',
+    '1003',
+    '钱七',
+    '总公司/市场部',
+    2
 );
 
 -- 恢复外键检查

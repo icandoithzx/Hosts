@@ -56,6 +56,11 @@ public class HostDto {
     private String responsiblePerson;
 
     /**
+     * 关联用户ID
+     */
+    private String userId;
+
+    /**
      * 版本号
      */
     private String version;

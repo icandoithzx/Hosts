@@ -13,6 +13,7 @@ INSERT INTO hosts (
     online_status,
     auth_status,
     responsible_person,
+    user_id,
     version,
     operating_system,
     organization_id,
@@ -32,6 +33,7 @@ INSERT INTO hosts (
     'ONLINE',
     'AUTHORIZED',
     '张三',
+    'USR001',
     '1.0.0',
     'Windows 11 Pro',
     '1001',
@@ -51,6 +53,7 @@ INSERT INTO hosts (
     'ONLINE',
     'AUTHORIZED',
     '李四',
+    'USR002',
     '2.1.0',
     'Ubuntu 20.04 LTS',
     '1002',
@@ -68,8 +71,9 @@ INSERT INTO hosts (
     'MOBILE',
     'ACTIVE',
     'OFFLINE',
-    'PENDING',
+    'UNAUTHORIZED',
     '王五',
+    'USR003',
     '1.2.3',
     'Android 12',
     '1001',
@@ -89,6 +93,7 @@ INSERT INTO hosts (
     'OFFLINE',
     'UNAUTHORIZED',
     '赵六',
+    'USR004',
     '0.9.5',
     'Windows 10 Pro',
     '1003',
@@ -198,104 +203,85 @@ INSERT INTO organizations (
     id,
     name,
     parent_id,
-    level,
-    path,
-    status,
-    sort_order,
-    description,
-    source_system,
-    external_version,
-    last_sync_time,
-    created_at,
-    updated_at
+    leaf
 ) VALUES 
 (
     '1001',
     '总公司',
     '0',
-    1,
-    '1001',
-    1,
-    0,
-    '公司总部',
-    'external',
-    'v1.0.0',
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
+    1
 ),
 (
     '1002',
     '技术中心',
     '1001',
-    2,
-    '1001/1002',
-    1,
-    1,
-    '负责技术研发和创新',
-    'external',
-    'v1.0.0',
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
+    1
 ),
 (
     '1003',
     '市场部',
     '1001',
-    2,
-    '1001/1003',
-    1,
-    2,
-    '负责市场营销和推广',
-    'external',
-    'v1.0.0',
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
+    0
 ),
 (
     '1004',
     '前端团队',
     '1002',
-    3,
-    '1001/1002/1004',
-    1,
-    1,
-    '前端开发团队',
-    'external',
-    'v1.0.0',
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
+    0
 ),
 (
     '1005',
     '后端团队',
     '1002',
-    3,
-    '1001/1002/1005',
-    1,
-    2,
-    '后端开发团队',
-    'external',
-    'v1.0.0',
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
+    0
 ),
 (
     '1006',
     '运维团队',
     '1002',
-    3,
-    '1001/1002/1006',
-    1,
-    3,
-    '运维保障团队',
-    'external',
-    'v1.0.0',
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
+    0
+);
+
+-- 插入示例用户数据
+INSERT INTO users (
+    id,
+    org_id,
+    name,
+    org_name,
+    m_level
+) VALUES 
+(
+    'USR001',
+    '1001',
+    '张三',
+    '总公司',
+    5
+),
+(
+    'USR002',
+    '1002',
+    '李四',
+    '总公司/技术中心',
+    4
+),
+(
+    'USR003',
+    '1004',
+    '王五',
+    '总公司/技术中心/前端团队',
+    3
+),
+(
+    'USR004',
+    '1005',
+    '赵六',
+    '总公司/技术中心/后端团队',
+    3
+),
+(
+    'USR005',
+    '1003',
+    '钱七',
+    '总公司/市场部',
+    2
 );

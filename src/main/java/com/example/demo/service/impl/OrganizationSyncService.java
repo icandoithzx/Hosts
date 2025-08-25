@@ -12,6 +12,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -161,7 +162,7 @@ public class OrganizationSyncService implements ApplicationRunner {
         mockData.setTimestamp(System.currentTimeMillis());
         
         // 创建模拟组织架构
-        List<ExternalOrganizationDto> mockOrgs = List.of(
+        List<ExternalOrganizationDto> mockOrgs = Arrays.asList(
             createMockOrg("1001", "总公司", "0", 0, "公司总部"),
             createMockOrg("1002", "技术中心", "1001", 1, "负责技术研发"),
             createMockOrg("1003", "市场部", "1001", 2, "负责市场营销"),

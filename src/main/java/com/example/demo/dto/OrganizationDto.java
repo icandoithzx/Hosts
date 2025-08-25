@@ -2,7 +2,6 @@ package com.example.demo.dto;
 
 import lombok.Data;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -27,42 +26,12 @@ public class OrganizationDto {
     private String parentId;
     
     /**
-     * 组织级别
+     * 是否有子部门（0-无子部门/叶子节点，1-有子部门/非叶子节点）
      */
-    private Integer level;
-    
-    /**
-     * 组织路径
-     */
-    private String path;
-    
-    /**
-     * 组织状态
-     */
-    private Integer status;
-    
-    /**
-     * 排序字段
-     */
-    private Integer sortOrder;
-    
-    /**
-     * 描述信息
-     */
-    private String description;
+    private Integer leaf;
     
     /**
      * 子组织列表（用于树形结构展示）
      */
     private List<OrganizationDto> children;
-    
-    /**
-     * 创建时间
-     */
-    private LocalDateTime createdAt;
-    
-    /**
-     * 更新时间
-     */
-    private LocalDateTime updatedAt;
 }
