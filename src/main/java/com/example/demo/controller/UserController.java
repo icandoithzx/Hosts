@@ -81,22 +81,6 @@ public class UserController {
     }
     
     /**
-     * 根据用户等级获取用户列表
-     */
-    @GetMapping("/level/{mLevel}")
-    public ResponseEntity<ApiResponse<List<User>>> getUsersByLevel(@PathVariable Integer mLevel) {
-        try {
-            List<User> users = userService.getByMLevel(mLevel);
-            return ResponseEntity.ok(ApiResponse.success(users));
-        } catch (Exception e) {
-            log.error("根据用户等级获取用户列表失败，等级: {}", mLevel, e);
-            return ResponseEntity.status(500).body(
-                ApiResponse.<List<User>>errorWithType(500, "获取用户列表失败: " + e.getMessage())
-            );
-        }
-    }
-    
-    /**
      * 手动触发用户数据同步（内部接口）
      */
     @PostMapping("/sync")
@@ -153,22 +137,6 @@ public class UserController {
             log.error("检查同步状态失败", e);
             return ResponseEntity.status(500).body(
                 ApiResponse.<Map<String, Object>>errorWithType(500, "检查同步状态失败: " + e.getMessage())
-            );
-        }
-    }
-    
-    /**
-     * 获取用户统计信息
-     */
-    @GetMapping("/statistics")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getStatistics() {
-        try {
-            Map<String, Object> statistics = userService.getStatistics();
-            return ResponseEntity.ok(ApiResponse.success(statistics));
-        } catch (Exception e) {
-            log.error("获取用户统计信息失败", e);
-            return ResponseEntity.status(500).body(
-                ApiResponse.<Map<String, Object>>errorWithType(500, "获取统计信息失败: " + e.getMessage())
             );
         }
     }
