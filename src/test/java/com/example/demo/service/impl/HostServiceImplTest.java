@@ -56,7 +56,7 @@ class HostServiceImplTest {
         sampleHost1.setResponsiblePerson("张三");
         sampleHost1.setVersion("1.0.0");
         sampleHost1.setOperatingSystem("Windows 10");
-        sampleHost1.setOrganizationId(1001L);
+        sampleHost1.setOrganizationId("1001");
         sampleHost1.setCreatedAt(LocalDateTime.now());
 
         sampleHost2 = new Host();
@@ -71,7 +71,7 @@ class HostServiceImplTest {
         sampleHost2.setResponsiblePerson("李四");
         sampleHost2.setVersion("2.0.0");
         sampleHost2.setOperatingSystem("Ubuntu 20.04");
-        sampleHost2.setOrganizationId(1002L);
+        sampleHost2.setOrganizationId("1002");
         sampleHost2.setCreatedAt(LocalDateTime.now());
     }
 

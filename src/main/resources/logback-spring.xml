@@ -1,24 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <!-- 定义彩色日志格式 -->
-    <conversionRule conversionWord="clr" converterClass="org.springframework.boot.logging.logback.ColorConverter" />
-    <conversionRule conversionWord="wex" converterClass="org.springframework.boot.logging.logback.WhitespaceThrowableProxyConverter" />
-    <conversionRule conversionWord="wEx" converterClass="org.springframework.boot.logging.logback.ExtendedWhitespaceThrowableProxyConverter" />
+    <!-- 
+         日志配置说明：
+         - 已移除所有彩色输出配置
+         - 使用纯文本格式输出
+         - 支持UTF-8编码
+    -->
 
-    <!-- 定义日志根目录 -->
-    <property name="LOG_HOME" value="${user.home}/logs/hosts" />
-    
-    <!-- 定义日志格式 -->
-    <property name="CONSOLE_LOG_PATTERN" 
-              value="%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(${LOG_LEVEL_PATTERN:-%5p}) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}"/>
-    
-    <property name="FILE_LOG_PATTERN" 
-              value="%d{yyyy-MM-dd HH:mm:ss.SSS} ${LOG_LEVEL_PATTERN:-%5p} ${PID:- } --- [%t] %-40.40logger{39} : %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}"/>
+    <!-- 日志文件目录 -->
+    <property name="LOG_HOME" value="${user.home}/logs/hosts"/>
+
+    <!-- 日志格式 - 纯文本输出，无彩色 -->
+    <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"/>
 
     <!-- 控制台输出 -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+            <pattern>${LOG_PATTERN}</pattern>
             <charset>UTF-8</charset>
         </encoder>
     </appender>
@@ -27,7 +25,7 @@
     <appender name="FILE_ALL" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_HOME}/hosts-all.log</file>
         <encoder>
-            <pattern>${FILE_LOG_PATTERN}</pattern>
+            <pattern>${LOG_PATTERN}</pattern>
             <charset>UTF-8</charset>
         </encoder>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
@@ -38,187 +36,23 @@
         </rollingPolicy>
     </appender>
 
-    <!-- 文件输出 - 错误日志 -->
-    <appender name="FILE_ERROR" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${LOG_HOME}/hosts-error.log</file>
-        <encoder>
-            <pattern>${FILE_LOG_PATTERN}</pattern>
-            <charset>UTF-8</charset>
-        </encoder>
-        <filter class="ch.qos.logback.classic.filter.LevelFilter">
-            <level>ERROR</level>
-            <onMatch>ACCEPT</onMatch>
-            <onMismatch>DENY</onMismatch>
-        </filter>
-        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>${LOG_HOME}/history/hosts-error-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
-            <maxFileSize>100MB</maxFileSize>
-            <maxHistory>60</maxHistory>
-            <totalSizeCap>5GB</totalSizeCap>
-        </rollingPolicy>
-    </appender>
-
-    <!-- 文件输出 - 业务日志 -->
-    <appender name="FILE_BUSINESS" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${LOG_HOME}/hosts-business.log</file>
-        <encoder>
-            <pattern>${FILE_LOG_PATTERN}</pattern>
-            <charset>UTF-8</charset>
-        </encoder>
-        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>${LOG_HOME}/history/hosts-business-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
-            <maxFileSize>100MB</maxFileSize>
-            <maxHistory>30</maxHistory>
-            <totalSizeCap>5GB</totalSizeCap>
-        </rollingPolicy>
-    </appender>
-
-    <!-- 异步文件输出 - 提高性能 -->
+    <!-- 异步文件输出 -->
     <appender name="ASYNC_FILE_ALL" class="ch.qos.logback.classic.AsyncAppender">
-        <discardingThreshold>0</discardingThreshold>
         <queueSize>1024</queueSize>
+        <discardingThreshold>0</discardingThreshold>
         <appender-ref ref="FILE_ALL"/>
     </appender>
 
-    <appender name="ASYNC_FILE_ERROR" class="ch.qos.logback.classic.AsyncAppender">
-        <discardingThreshold>0</discardingThreshold>
-        <queueSize>256</queueSize>
-        <appender-ref ref="FILE_ERROR"/>
-    </appender>
+    <!-- 日志级别配置 -->
+    <logger name="com.example.demo" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE_ALL"/>
+    </logger>
 
-    <appender name="ASYNC_FILE_BUSINESS" class="ch.qos.logback.classic.AsyncAppender">
-        <discardingThreshold>0</discardingThreshold>
-        <queueSize>512</queueSize>
-        <appender-ref ref="FILE_BUSINESS"/>
-    </appender>
-
-    <!-- 开发环境配置 -->
-    <springProfile name="dev">
-        <!-- 应用程序日志级别 -->
-        <logger name="com.example.demo" level="DEBUG" additivity="false">
-            <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="ASYNC_FILE_ALL"/>
-            <appender-ref ref="ASYNC_FILE_ERROR"/>
-        </logger>
-        
-        <!-- 业务日志 -->
-        <logger name="com.example.demo.service" level="INFO" additivity="false">
-            <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="ASYNC_FILE_BUSINESS"/>
-        </logger>
-        
-        <!-- 数据库日志 -->
-        <logger name="com.example.demo.mapper" level="DEBUG" additivity="false">
-            <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="ASYNC_FILE_ALL"/>
-        </logger>
-        
-        <!-- MyBatis Plus日志 -->
-        <logger name="com.baomidou.mybatisplus" level="DEBUG"/>
-        
-        <!-- Spring框架日志 -->
-        <logger name="org.springframework" level="INFO"/>
-        <logger name="org.springframework.web" level="DEBUG"/>
-        
-        <!-- Redis日志 -->
-        <logger name="org.redisson" level="INFO"/>
-        
-        <!-- 根日志级别 -->
-        <root level="INFO">
-            <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="ASYNC_FILE_ERROR"/>
-        </root>
-    </springProfile>
-
-    <!-- 测试环境配置 -->
-    <springProfile name="test">
-        <!-- 应用程序日志级别 -->
-        <logger name="com.example.demo" level="INFO" additivity="false">
-            <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="ASYNC_FILE_ALL"/>
-            <appender-ref ref="ASYNC_FILE_ERROR"/>
-        </logger>
-        
-        <!-- 业务日志 -->
-        <logger name="com.example.demo.service" level="INFO" additivity="false">
-            <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="ASYNC_FILE_BUSINESS"/>
-        </logger>
-        
-        <!-- 控制器日志 -->
-        <logger name="com.example.demo.controller" level="INFO" additivity="false">
-            <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="ASYNC_FILE_ALL"/>
-        </logger>
-        
-        <!-- 数据库日志 -->
-        <logger name="com.example.demo.mapper" level="WARN"/>
-        
-        <!-- MyBatis Plus日志 -->
-        <logger name="com.baomidou.mybatisplus" level="WARN"/>
-        
-        <!-- Spring框架日志 -->
-        <logger name="org.springframework" level="WARN"/>
-        
-        <!-- Redis日志 -->
-        <logger name="org.redisson" level="WARN"/>
-        
-        <!-- 根日志级别 -->
-        <root level="INFO">
-            <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="ASYNC_FILE_ALL"/>
-            <appender-ref ref="ASYNC_FILE_ERROR"/>
-        </root>
-    </springProfile>
-
-    <!-- 生产环境配置 -->
-    <springProfile name="prod">
-        <!-- 应用程序日志级别 -->
-        <logger name="com.example.demo" level="WARN" additivity="false">
-            <appender-ref ref="ASYNC_FILE_ALL"/>
-            <appender-ref ref="ASYNC_FILE_ERROR"/>
-        </logger>
-        
-        <!-- 业务日志 -->
-        <logger name="com.example.demo.service" level="INFO" additivity="false">
-            <appender-ref ref="ASYNC_FILE_BUSINESS"/>
-        </logger>
-        
-        <!-- 控制器日志 -->
-        <logger name="com.example.demo.controller" level="INFO" additivity="false">
-            <appender-ref ref="ASYNC_FILE_ALL"/>
-        </logger>
-        
-        <!-- 错误日志 -->
-        <logger name="com.example.demo" level="ERROR" additivity="true">
-            <appender-ref ref="ASYNC_FILE_ERROR"/>
-        </logger>
-        
-        <!-- 关闭调试日志 -->
-        <logger name="com.example.demo.mapper" level="ERROR"/>
-        <logger name="com.baomidou.mybatisplus" level="ERROR"/>
-        <logger name="org.springframework" level="ERROR"/>
-        <logger name="org.redisson" level="WARN"/>
-        
-        <!-- 根日志级别 -->
-        <root level="WARN">
-            <appender-ref ref="ASYNC_FILE_ALL"/>
-            <appender-ref ref="ASYNC_FILE_ERROR"/>
-        </root>
-    </springProfile>
-
-    <!-- 默认配置（当没有指定profile时） -->
-    <springProfile name="!dev &amp; !test &amp; !prod">
-        <logger name="com.example.demo" level="INFO" additivity="false">
-            <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="ASYNC_FILE_ALL"/>
-            <appender-ref ref="ASYNC_FILE_ERROR"/>
-        </logger>
-        
-        <root level="INFO">
-            <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="ASYNC_FILE_ERROR"/>
-        </root>
-    </springProfile>
+    <!-- 根日志 -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE_ALL"/>
+    </root>
 
 </configuration>

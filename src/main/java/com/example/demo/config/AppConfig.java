@@ -19,6 +19,9 @@ public class AppConfig {
     @Value("${spring.redis.port:6379}")
     private int redisPort;
     
+    @Value("${spring.redis.password}")
+    private String redisPassword;
+
     @Bean
     @ConditionalOnProperty(name = "spring.redis.enabled", havingValue = "true", matchIfMissing = true)
     public RedissonClient redissonClient() {
@@ -27,6 +30,7 @@ public class AppConfig {
             String address = "redis://" + redisHost + ":" + redisPort;
             config.useSingleServer()
                     .setAddress(address)
+                    .setPassword(redisPassword)
                     .setConnectionMinimumIdleSize(8)
                     .setConnectionPoolSize(32)
                     .setDnsMonitoringInterval(5000)

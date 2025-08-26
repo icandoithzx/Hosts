@@ -92,15 +92,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     
     @Override
     public boolean needSync() {
-        // 简化同步策略：如果数据库为空，需要同步
-        Long count = organizationMapper.countAll();
-        if (count == 0) {
-            log.info("📋 组织架构数据为空，需要同步");
-            return true;
-        }
-        
-        log.debug("✨ 组织架构数据存在，暂不需要同步");
-        return false;
+        return true;
     }
     
     @Override

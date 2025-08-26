@@ -88,15 +88,7 @@ public class UserServiceImpl implements UserService {
     
     @Override
     public boolean needSync() {
-        // 简化同步策略：如果数据库为空，需要同步
-        Long count = userMapper.countAll();
-        if (count == 0) {
-            log.info("📋 用户数据为空，需要同步");
-            return true;
-        }
-        
-        log.debug("✨ 用户数据存在，暂不需要同步");
-        return false;
+        return true ;
     }
     
     @Override
